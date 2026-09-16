@@ -39,6 +39,7 @@ export const WORKLOAD_TYPES: string[] = [
   ModelsPlural.jobs,
   ModelsPlural.statefulsets,
   ModelsPlural.daemonsets,
+  ModelsPlural.rollouts,
 ];
 
 const apiVersionForWorkloadType = (type: string) => {

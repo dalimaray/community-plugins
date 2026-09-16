@@ -12,7 +12,8 @@
     "pluginId": "topology",
     "pluginPackages": [
       "@backstage-community/plugin-topology"
-    ]
+    ],
+    "supported-versions": "1.48.4"
   },
   "exports": {
     ".": "./src/index.ts",
@@ -97,6 +98,7 @@
   },
   "files": [
     "dist",
+    "dist-scalprum",
     "app-config.backstage-community.yaml"
   ],
   "repository": {

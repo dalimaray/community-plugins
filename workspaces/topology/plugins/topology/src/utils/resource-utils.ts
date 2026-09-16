@@ -110,6 +110,8 @@ const getPodTemplate = (
       return (resource as V1DaemonSet).spec?.template;
     case 'VirtualMachine':
       return (resource?.spec as VMSpec)?.template;
+    case 'Rollout':
+      return (resource as V1Deployment).spec?.template;
     default:
       return undefined;
   }

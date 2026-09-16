@@ -1,0 +1,6 @@
+FROM docker.io/busybox:latest
+COPY backstage-community-plugin-topology-2.11.0.tgz /plugin.tgz
+RUN mkdir -p /plugin && \
+    cd /plugin && \
+    tar xzf /plugin.tgz --strip-components=1 && \
+    rm /plugin.tgz

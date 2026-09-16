@@ -27,6 +27,12 @@ export const VirtualMachineInstanceGVK: GroupVersionKind = {
   kind: 'VirtualMachineInstance',
 };
 
+export const VirtualMachineInstanceReplicaSetGVK: GroupVersionKind = {
+  apiVersion: 'v1',
+  apiGroup: 'kubevirt.io',
+  kind: 'VirtualMachineInstanceReplicaSet',
+};
+
 export const VirtualMachineModel: Model = {
   ...VirtualMachineGVK,
   abbr: 'VM',
@@ -41,4 +47,12 @@ export const VirtualMachineInstanceModel: Model = {
   labelPlural: 'VirtualMachineInstances',
   color: '#2b9af3',
   plural: 'virtualmachineinstances',
+};
+
+export const VirtualMachineInstanceReplicaSetModel: Model = {
+  ...VirtualMachineInstanceReplicaSetGVK,
+  abbr: 'VMIRS',
+  labelPlural: 'VirtualMachineInstanceReplicaSets',
+  color: '#2b9af3',
+  plural: 'virtualmachineinstancereplicasets',
 };

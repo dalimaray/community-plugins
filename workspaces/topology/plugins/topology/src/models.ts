@@ -24,9 +24,17 @@ import {
 } from './pipeline-models';
 import { GroupVersionKind, Model } from './types/types';
 import {
+  AnalysisRunGVK,
+  AnalysisRunModel,
+  RolloutGVK,
+  RolloutModel,
+} from './rollout-models';
+import {
   VirtualMachineGVK,
   VirtualMachineInstanceGVK,
   VirtualMachineInstanceModel,
+  VirtualMachineInstanceReplicaSetGVK,
+  VirtualMachineInstanceReplicaSetModel,
   VirtualMachineModel,
 } from './vm-models';
 
@@ -114,6 +122,9 @@ export enum ModelsPlural {
   checlusters = 'checlusters',
   virtualmachines = 'virtualmachines',
   virtualmachineinstances = 'virtualmachineinstances',
+  virtualmachineinstancereplicasets = 'virtualmachineinstancereplicasets',
+  rollouts = 'rollouts',
+  analysisruns = 'analysisruns',
   // replicationcontrollers = 'replicationcontrollers',
 }
 
@@ -134,6 +145,10 @@ export const resourceGVKs: { [key: string]: GroupVersionKind } = {
   [ModelsPlural.checlusters]: CheClusterGVK,
   [ModelsPlural.virtualmachines]: VirtualMachineGVK,
   [ModelsPlural.virtualmachineinstances]: VirtualMachineInstanceGVK,
+  [ModelsPlural.virtualmachineinstancereplicasets]:
+    VirtualMachineInstanceReplicaSetGVK,
+  [ModelsPlural.rollouts]: RolloutGVK,
+  [ModelsPlural.analysisruns]: AnalysisRunGVK,
 };
 
 export const DeploymentModel: Model = {
@@ -228,5 +243,9 @@ export const resourceModels = {
   [CheClusterModel.kind]: CheClusterModel,
   [VirtualMachineModel.kind]: VirtualMachineModel,
   [VirtualMachineInstanceModel.kind]: VirtualMachineInstanceModel,
+  [VirtualMachineInstanceReplicaSetModel.kind]:
+    VirtualMachineInstanceReplicaSetModel,
   [TemplateModel.kind]: TemplateModel,
+  [RolloutModel.kind]: RolloutModel,
+  [AnalysisRunModel.kind]: AnalysisRunModel,
 };

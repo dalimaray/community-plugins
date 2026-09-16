@@ -26,6 +26,7 @@ import {
 
 import { AllPodStatus, PodPhase } from '../components/Pods/pod';
 import { ReplicaSetGVK, StatefulSetGVK } from '../models';
+import { isVMPluginRollout } from '../types/rollout';
 import {
   OverviewItemAlerts,
   PodControllerOverviewItem,
@@ -37,7 +38,7 @@ import {
   K8sWorkloadResource,
 } from '../types/types';
 import { VMKind } from '../types/vm';
-import { getPodsForVM } from './vm-utils';
+import { findPodFromVMI, getPodsForVM, isV1Pod, isVMIKind } from './vm-utils';
 
 // List of container status waiting reason values that we should call out as errors in project status rows.
 const CONTAINER_WAITING_STATE_ERROR_REASONS = [
@@ -372,6 +373,76 @@ export const getPodsForDaemonSet = (
   };
 };
 
+export const getPodsForRollout = (
+  rollout: K8sWorkloadResource,
+  resources: K8sResponseData,
+): PodRCData => {
+  const { pods } = resources;
+  const rolloutSpec = (rollout as any).spec;
+  const workloadRef = rolloutSpec?.workloadRef;
+
+  // VM Rollout: either workloadRef → VMIRS directly, or PodTemplate + vmirs-canary step plugin
+  const steps = rolloutSpec?.strategy?.canary?.steps;
+  if (
+    workloadRef?.kind === 'VirtualMachineInstanceReplicaSet' ||
+    isVMPluginRollout(steps)
+  ) {
+    const allVMIs = resources?.virtualmachineinstances?.data?.filter(isVMIKind);
+    const allPods = pods?.data?.filter(isV1Pod);
+    const matchLabels = rolloutSpec?.selector?.matchLabels;
+
+    // Find VMIs matching the Rollout's selector (same as VMIRS selector)
+    const matchingVMIs = (allVMIs ?? []).filter(vmi => {
+      const vmiLabels = vmi?.metadata?.labels ?? {};
+      return (
+        vmi?.metadata?.namespace === rollout?.metadata?.namespace &&
+        matchLabels &&
+        Object.entries(matchLabels).every(
+          ([key, value]) => vmiLabels[key] === value,
+        )
+      );
+    });
+
+    // Find virt-launcher pods owned by those VMIs
+    const matchingPods = matchingVMIs.flatMap(vmi =>
+      findPodFromVMI(vmi, allPods ?? []),
+    );
+
+    return {
+      obj: rollout,
+      current: undefined,
+      previous: undefined,
+      isRollingOut: (rollout as any).status?.phase === 'Progressing',
+      pods: matchingPods,
+    };
+  }
+
+  // Container Rollout: standard label-based pod matching
+  const matchLabels = rolloutSpec?.selector?.matchLabels;
+
+  if (!matchLabels || !pods?.data) {
+    return {
+      obj: rollout,
+      pods: [],
+    };
+  }
+
+  const matchingPods = (pods.data as V1Pod[]).filter(pod => {
+    const podLabels = pod.metadata?.labels ?? {};
+    return Object.entries(matchLabels).every(
+      ([key, value]) => podLabels[key] === value,
+    );
+  });
+
+  return {
+    obj: rollout,
+    current: undefined,
+    previous: undefined,
+    isRollingOut: (rollout as any).status?.phase === 'Progressing',
+    pods: matchingPods,
+  };
+};
+
 /**
  * Extract the resources from `getResourcesToWatchForPods` which are watched with `useK8sWatchResources`.
  */
@@ -391,6 +462,8 @@ export const getPodsDataForResource = (
       return getPodsForCronJob(resource as V1CronJob, resources);
     case 'VirtualMachine':
       return getPodsForVirtualMachine(resource as VMKind, resources);
+    case 'Rollout':
+      return getPodsForRollout(resource, resources);
     case 'Pod':
       return {
         obj: resource,

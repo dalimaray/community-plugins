@@ -30,13 +30,16 @@ import {
   PodModel,
   StatefulSetModel,
 } from '../../../models';
+import { RolloutKind } from '../../../types/rollout';
 import { VMKind } from '../../../types/vm';
+import { RolloutModel } from '../../../rollout-models';
 import { VirtualMachineModel } from '../../../vm-models';
 import PodSet from '../../Pods/PodSet';
 import TopologyCronJobDetails from './TopologyCronJobDetails';
 import TopologyDaemonSetDetails from './TopologyDaemonSetDetails';
 import TopologyDeploymentDetails from './TopologyDeploymentDetails';
 import TopologyJobDetails from './TopologyJobDetails';
+import TopologyRolloutDetails from './TopologyRolloutDetails';
 import TopologyVirtualMachineDetails from './TopologyVirtualMachineDetails';
 import TopologyWorkloadDetails from './TopologyWorkloadDetails';
 
@@ -55,6 +58,8 @@ const TopologyDetailsTabPanel = ({ node }: TopologyDetailsTabPanelProps) => {
   const cy = height / 2;
   const getWorkloadDetails = () => {
     switch (resourceKind) {
+      case RolloutModel.kind:
+        return <TopologyRolloutDetails rollout={resource as RolloutKind} />;
       case VirtualMachineModel.kind:
         return <TopologyVirtualMachineDetails vm={resource as VMKind} />;
       case DeploymentModel.kind:

@@ -103,6 +103,8 @@ export const TopologyComponent = () => {
     ModelsPlural.checlusters,
     ModelsPlural.virtualmachines,
     ModelsPlural.virtualmachineinstances,
+    ModelsPlural.rollouts,
+    ModelsPlural.analysisruns,
   ];
 
   const k8sResourcesContextData = useK8sObjectsResponse(watchedResources);
