@@ -1,5 +1,17 @@
 # @backstage-community/plugin-code-coverage
 
+## 0.14.1
+
+### Patch Changes
+
+- 0ebfc07: Added support for the New Frontend System
+
+## 0.14.0
+
+### Minor Changes
+
+- 565295c: Backstage version bump to v1.49.2
+
 ## 0.13.1
 
 ### Patch Changes

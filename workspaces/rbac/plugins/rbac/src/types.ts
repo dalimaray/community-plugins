@@ -17,10 +17,7 @@ import { GroupEntity, UserEntity } from '@backstage/catalog-model';
 
 import { RJSFSchema } from '@rjsf/utils';
 
-import {
-  PermissionAction,
-  RoleConditionalPolicyDecision,
-} from '@backstage-community/plugin-rbac-common';
+import { RoleConditionalPolicyDecision } from '@backstage-community/plugin-rbac-common';
 
 import { ConditionsData } from './components/ConditionalAccess/types';
 import { RowPolicy } from './components/CreateRole/types';
@@ -36,6 +33,8 @@ export type RolesData = {
     edit: { allowed: boolean };
   };
   accessiblePlugins: string[];
+  /** When true, this role is the default role for all users and groups. */
+  isDefault?: boolean;
 };
 
 export type MembersData = {
@@ -94,10 +93,7 @@ export type RoleError = { error: { name: string; message: string } };
 /**
  * @public
  */
-export type RoleBasedConditions = Omit<
-  RoleConditionalPolicyDecision<PermissionAction>,
-  'id'
->;
+export type RoleBasedConditions = Omit<RoleConditionalPolicyDecision, 'id'>;
 
 /**
  * @public

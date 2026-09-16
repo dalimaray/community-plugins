@@ -1,5 +1,71 @@
 # @backstage-community/plugin-catalog-backend-module-azure-resources
 
+## 0.11.0
+
+### Minor Changes
+
+- 8ae8541: Backstage version bump to v1.53.0
+
+### Patch Changes
+
+- Updated dependencies [8ae8541]
+  - @backstage-community/plugin-azure-resources-node@0.14.0
+
+## 0.10.0
+
+### Minor Changes
+
+- 43856e3: Backstage version bump to v1.52.0
+
+### Patch Changes
+
+- Updated dependencies [43856e3]
+  - @backstage-community/plugin-azure-resources-node@0.13.0
+
+## 0.9.0
+
+### Minor Changes
+
+- 7d76b76: Backstage version bump to v1.51.0
+
+### Patch Changes
+
+- Updated dependencies [7d76b76]
+  - @backstage-community/plugin-azure-resources-node@0.12.0
+
+## 0.8.0
+
+### Minor Changes
+
+- 3da9bd4: Backstage version bump to v1.50.2
+
+### Patch Changes
+
+- Updated dependencies [3da9bd4]
+  - @backstage-community/plugin-azure-resources-node@0.11.0
+
+## 0.7.0
+
+### Minor Changes
+
+- b43b828: Backstage version bump to v1.49.2
+
+### Patch Changes
+
+- Updated dependencies [b43b828]
+  - @backstage-community/plugin-azure-resources-node@0.10.0
+
+## 0.6.0
+
+### Minor Changes
+
+- faf5e7a: Backstage version bump to v1.48.2
+
+### Patch Changes
+
+- Updated dependencies [faf5e7a]
+  - @backstage-community/plugin-azure-resources-node@0.9.0
+
 ## 0.5.1
 
 ### Patch Changes

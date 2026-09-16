@@ -1,5 +1,119 @@
 # @backstage-community/plugin-servicenow
 
+## 1.15.2
+
+### Patch Changes
+
+- 1b590ba: Updated dependency `@playwright/test` to `1.63.0`.
+- 3b2eddd: Backstage version bump to v1.54.7
+- Updated dependencies [3b2eddd]
+  - @backstage-community/plugin-servicenow-common@1.13.1
+
+## 1.15.1
+
+### Patch Changes
+
+- 4813d14: Updated dependency `@playwright/test` to `1.62.1`.
+
+## 1.15.0
+
+### Minor Changes
+
+- ede61dd: Backstage version bump to v1.54.5
+
+### Patch Changes
+
+- 7640966: Improve automated coverage for plugin init, Table API client query contracts, and frontend backend client wiring so Backstage version bumps fail in CI when those surfaces break. The backend client now includes the entity annotation field in ServiceNow incident queries.
+- Updated dependencies [7640966]
+- Updated dependencies [ede61dd]
+  - @backstage-community/plugin-servicenow-common@1.13.0
+
+## 1.14.0
+
+### Minor Changes
+
+- 087a229: Add NFS translations module with default export for `packages: all` discovery
+
+## 1.13.2
+
+### Patch Changes
+
+- dcab544: Fixed WCAG accessibility violations: added accessible name to pagination select and filter inputs, and enabled assertion of zero violations in e2e accessibility scan.
+
+## 1.13.1
+
+### Patch Changes
+
+- 6622075: Updated dependency `@playwright/test` to `1.61.1`.
+
+## 1.13.0
+
+### Minor Changes
+
+- 2603949: Backstage version bump to v1.51.0
+- 2e296d0: Backstage version bump to v1.52.0
+
+### Patch Changes
+
+- fc0ec09: Migrate ServiceNow frontend plugin from Material UI v4 to Material UI v5, replacing `makeStyles` with `sx` props and removing `@material-ui/*` imports.
+- Updated dependencies [2603949]
+- Updated dependencies [2e296d0]
+  - @backstage-community/plugin-servicenow-common@1.12.0
+
+## 1.12.0
+
+### Minor Changes
+
+- 5399656: Backstage version bump to v1.50.4
+
+### Patch Changes
+
+- Updated dependencies [5399656]
+  - @backstage-community/plugin-servicenow-common@1.11.0
+
+## 1.11.1
+
+### Patch Changes
+
+- 69b9fd3: Translations updated for de/es/fr/it/ja
+
+## 1.11.0
+
+### Minor Changes
+
+- 8754ccb: Backstage version bump to v1.50.2
+
+### Patch Changes
+
+- Updated dependencies [8754ccb]
+  - @backstage-community/plugin-servicenow-common@1.10.0
+
+## 1.10.0
+
+### Minor Changes
+
+- a229130: Backstage version bump to v1.49.2
+
+### Patch Changes
+
+- 0467b33: Updated dependency `@testing-library/react` to `^16.0.0`.
+  Updated dependency `@testing-library/dom` to `10.4.1`.
+  Updated dependency `@testing-library/jest-dom` to `^6.0.0`.
+- Updated dependencies [a229130]
+  - @backstage-community/plugin-servicenow-common@1.9.0
+
+## 1.9.0
+
+### Minor Changes
+
+- d578507: Backstage version bump to v1.48.4
+
+### Patch Changes
+
+- 1d15595: Translation updated for German and Spanish
+- Updated dependencies [d578507]
+  - @backstage-community/plugin-servicenow-common@1.8.0
+
 ## 1.8.0
 
 ### Minor Changes

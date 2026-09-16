@@ -19,7 +19,8 @@ import { Progress, ResponseErrorPanel } from '@backstage/core-components';
 import { configApiRef, useApi } from '@backstage/core-plugin-api';
 import { useEntity } from '@backstage/plugin-catalog-react';
 
-import { createStyles, makeStyles, Theme, Typography } from '@material-ui/core';
+import Typography from '@mui/material/Typography';
+import { styled } from '@mui/material/styles';
 import { argoCDApiRef } from '../../api';
 import { useApplications } from '../../hooks/useApplications';
 import { useArgocdViewPermission } from '../../hooks/useArgocdViewPermission';
@@ -41,28 +42,30 @@ import { ArgoResourcesProvider } from './sidebar/rollouts/RolloutContext';
 import { DrawerProvider } from './DrawerContext';
 import { useTranslation } from '../../hooks/useTranslation';
 
-const useDrawerStyles = makeStyles<Theme>(theme =>
-  createStyles({
-    lifecycle: {
-      display: 'flex',
-      flexWrap: 'nowrap',
-      overflowX: 'auto',
-      background:
-        theme.palette.type === 'dark'
-          ? theme.palette.grey[700]
-          : theme.palette.grey[200],
-      color: 'black',
-      margin: '1px solid red',
-      padding: '20px',
-      borderRadius: '10px',
-    },
-  }),
-);
+export interface DeploymentLifecycleProps {
+  showInstance?: boolean;
+  showServer?: boolean;
+}
 
-const DeploymentLifecycle = () => {
+const LifecycleContainer = styled('div')(({ theme }) => ({
+  display: 'flex',
+  flexWrap: 'nowrap',
+  overflowX: 'auto',
+  background:
+    theme.palette.mode === 'dark'
+      ? theme.palette.grey[700]
+      : theme.palette.grey[200],
+  color: 'black',
+  padding: '20px',
+  borderRadius: '10px',
+}));
+
+const DeploymentLifecycle = ({
+  showInstance = true,
+  showServer = true,
+}: DeploymentLifecycleProps) => {
   const { t } = useTranslation();
   const { entity } = useEntity();
-  const classes = useDrawerStyles();
 
   const api = useApi(argoCDApiRef);
   const configApi = useApi(configApiRef);
@@ -105,6 +108,7 @@ const DeploymentLifecycle = () => {
         .getRevisionDetailsList({
           apps: apps,
           revisionIDs: uniqRevisions,
+          appNamespace: appNamespace,
         })
         .then(data => {
           // By default, the data returned can contain copies of the same revision, depending on
@@ -122,6 +126,7 @@ const DeploymentLifecycle = () => {
   }, [
     api,
     apps,
+    appNamespace,
     entity,
     uniqRevisions,
     keepDuplicateRevisions,
@@ -160,19 +165,21 @@ const DeploymentLifecycle = () => {
         {t('deploymentLifecycle.deploymentLifecycle.subtitle')}
       </Typography>
 
-      <div className={classes.lifecycle}>
+      <LifecycleContainer>
         {apps.map((app: Application, idx: number) => (
           <DeploymentLifecycleCard
             app={app}
             key={app.metadata.uid ?? idx}
             revisions={revisionCache.current}
+            showInstance={showInstance}
+            showServer={showServer}
             onclick={() => {
               toggleDrawer();
               setActiveItem(app.metadata.uid);
             }}
           />
         ))}
-      </div>
+      </LifecycleContainer>
       <DrawerProvider
         application={activeApp as Application}
         revisions={revisionCache.current}
@@ -181,6 +188,8 @@ const DeploymentLifecycle = () => {
           <DeploymentLifecycleDrawer
             isOpen={open}
             onClose={() => setOpen(false)}
+            showInstance={showInstance}
+            showServer={showServer}
           />
         </ArgoResourcesProvider>
       </DrawerProvider>

@@ -25,9 +25,11 @@ import {
   topLevelGroupsLowerThan23,
   users as usersFixture,
 } from '../../__fixtures__/data';
+import { assertLogMustNotInclude } from '../../__fixtures__/helpers';
 import {
   KeycloakAdminClientMockServerv18,
   KeycloakAdminClientMockServerv24,
+  KeycloakAdminClientMockServerv26,
 } from '../../__fixtures__/helpers';
 import { KeycloakProviderConfig } from './config';
 import {
@@ -121,6 +123,21 @@ describe('readKeycloakRealm', () => {
     expect(groups).toHaveLength(3);
   });
 
+  it('should return the correct number of users and groups (Version 26 or Higher, no systemInfo version)', async () => {
+    const client =
+      new KeycloakAdminClientMockServerv26() as unknown as KeycloakAdminClient;
+    const { users, groups } = await readKeycloakRealm(
+      client,
+      config,
+      logger,
+      mockPLimit as unknown as LimitFunction,
+      taskInstanceId,
+      mockCounter,
+    );
+    expect(users).toHaveLength(3);
+    expect(groups).toHaveLength(3);
+  });
+
   it(`should not contain undefined members when a group member is not found in the fetched user list`, async () => {
     const client =
       new KeycloakAdminClientMockServerv24() as unknown as KeycloakAdminClient;
@@ -139,7 +156,7 @@ describe('readKeycloakRealm', () => {
     );
 
     for (const group of groups) {
-      console.log(group.spec.members);
+      // console.log(group.spec.members);
       expect(group.spec.members).not.toContain(undefined);
     }
   });
@@ -188,6 +205,38 @@ describe('readKeycloakRealm', () => {
 
     const client =
       new KeycloakAdminClientMockServerv18() as unknown as KeycloakAdminClient;
+    const { users, groups } = await readKeycloakRealm(
+      client,
+      config,
+      logger,
+      mockPLimit as unknown as LimitFunction,
+      taskInstanceId,
+      mockCounter,
+      {
+        userTransformer,
+        groupTransformer,
+      },
+    );
+    expect(groups[0].metadata.name).toBe('biggroup_foo');
+    expect(groups[0].spec.children).toEqual(['subgroup_foo']);
+    expect(groups[0].spec.members).toEqual(['jamesdoe_bar']);
+    expect(groups[1].spec.parent).toBe('biggroup_foo');
+    expect(users[0].metadata.name).toBe('jamesdoe_bar');
+    expect(users[0].spec.memberOf).toEqual(['biggroup_foo']);
+  });
+
+  it('should propagate transformer changes to entities (version 26 or higher, no systemInfo version)', async () => {
+    const groupTransformer: GroupTransformer = async (entity, _g, _r) => {
+      entity.metadata.name = `${entity.metadata.name}_foo`;
+      return entity;
+    };
+    const userTransformer: UserTransformer = async (e, _u, _r, _g) => {
+      e.metadata.name = `${e.metadata.name}_bar`;
+      return e;
+    };
+
+    const client =
+      new KeycloakAdminClientMockServerv26() as unknown as KeycloakAdminClient;
     const { users, groups } = await readKeycloakRealm(
       client,
       config,
@@ -332,6 +381,20 @@ describe('parseUser', () => {
     expect(entity).toBeDefined();
     expect(entity?.metadata.name).toEqual('jamesdoe_test');
   });
+
+  it('sanitizes invalid username characters with the default transformer contract input', async () => {
+    const entity = await parseUser(
+      {
+        ...usersFixture[0],
+        username: 'jane.doe_x-y/Admin@Example',
+      },
+      'test',
+      [],
+      new Map(),
+    );
+
+    expect(entity?.metadata.name).toBe('jane.doe_x-y-Admin-Example');
+  });
 });
 
 describe('getEntitiesUser', () => {
@@ -429,6 +492,55 @@ describe('getEntitiesUser', () => {
 
     expect(client.users.find).toHaveBeenCalledTimes(3);
   });
+
+  it('continues after a page failure and increments dataBatchFailureCounter', async () => {
+    const batchFailureCounter = {
+      add: jest.fn(),
+    } as unknown as Counter<Attributes>;
+    const batchTaskInstanceId = 'batch-failure-task-id';
+    const clientSecret = 'mock-client-secret'; // NOSONAR
+
+    const client =
+      new KeycloakAdminClientMockServerv24() as unknown as KeycloakAdminClient;
+    client.users.count = jest.fn().mockResolvedValue(3);
+    client.users.find = jest.fn().mockImplementation(({ first }) => {
+      if (first === 0) {
+        return Promise.resolve([usersFixture[0]]);
+      }
+      if (first === 1) {
+        return Promise.reject(new Error('Keycloak page fetch failed'));
+      }
+      if (first === 2) {
+        return Promise.resolve([usersFixture[2]]);
+      }
+      return Promise.resolve([]);
+    });
+
+    const users = await getEntities(
+      async () => client.users,
+      {
+        id: 'default',
+        baseUrl: 'http://mock-url',
+        realm: 'myrealm',
+        clientSecret,
+      },
+      logger,
+      batchFailureCounter,
+      batchTaskInstanceId,
+      mockPLimit as unknown as LimitFunction,
+      1,
+    );
+
+    expect(users).toHaveLength(2);
+    expect(users.map(u => u.username)).toEqual(['jamesdoe', 'johndoe']);
+    expect(batchFailureCounter.add).toHaveBeenCalledWith(1, {
+      taskInstanceId: batchTaskInstanceId,
+    });
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining(batchTaskInstanceId),
+    );
+    assertLogMustNotInclude(logger, [clientSecret]);
+  });
 });
 
 describe('fetch subgroups', () => {
@@ -449,5 +561,18 @@ describe('fetch subgroups', () => {
     const groups = [...traverseGroups(topLevelGroupsLowerThan23[0])];
 
     expect(groups).toHaveLength(2);
+  });
+
+  it('processGroupsRecursively (Version 26 or Higher, no systemInfo version)', async () => {
+    const client =
+      new KeycloakAdminClientMockServerv26() as unknown as KeycloakAdminClient;
+    const groups = await processGroupsRecursively(
+      client,
+      config,
+      logger,
+      topLevelGroups23orHigher,
+    );
+
+    expect(groups).toHaveLength(3);
   });
 });

@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+import { LoggerService } from '@backstage/backend-plugin-api';
+
 // =============================================================================
 // Constants and Enums
 // =============================================================================
@@ -48,6 +50,7 @@ export enum MCPServerType {
 export type LLMProviderType =
   | 'openai'
   | 'openai-responses'
+  | 'azure-openai'
   | 'claude'
   | 'gemini'
   | 'ollama'
@@ -98,6 +101,8 @@ export interface MCPServerConfig {
   args?: string[];
   /** URL endpoint (for HTTP servers) */
   url?: string;
+  /** List of tools to be excluded for the MCP Server */
+  disabledTools?: string[];
 }
 
 /**
@@ -203,6 +208,14 @@ export interface ProviderConfig {
   baseUrl: string;
   /** Model identifier to use */
   model: string;
+  /** Azure OpenAI deployment name. Required when using the `azure-openai` provider type. */
+  deploymentName?: string;
+  /** Logger for debugging */
+  logger?: LoggerService;
+  /** Maximum number of tokens to generate (default: 1000 for OpenAI-compatible, 4096 for Claude, 8192 for Gemini) */
+  maxTokens?: number;
+  /** Temperature for response randomness, between 0 and 1 (default: 0.7) */
+  temperature?: number;
 }
 
 /**

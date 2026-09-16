@@ -1,5 +1,47 @@
 # @backstage-community/plugin-scaffolder-backend-module-regex
 
+## 2.18.0
+
+### Minor Changes
+
+- fe687dc: Backstage version bump to v1.54.5
+
+## 2.17.1
+
+### Patch Changes
+
+- cce0831: Add module wiring tests, direct Zod schema validation coverage, a local dev/ harness, and contributor documentation so Backstage dependency bumps are caught by scoped automated tests.
+
+## 2.17.0
+
+### Minor Changes
+
+- 7ed1966: Backstage version bump to v1.52.0
+
+## 2.16.0
+
+### Minor Changes
+
+- d5196be: Backstage version bump to v1.51.0
+
+## 2.15.1
+
+### Patch Changes
+
+- 170f85d: Migrate to Jest 30
+
+## 2.15.0
+
+### Minor Changes
+
+- 25a817c: Backstage version bump to v1.49.3
+
+## 2.14.0
+
+### Minor Changes
+
+- d589c26: Backstage version bump to v1.48.4
+
 ## 2.13.0
 
 ### Minor Changes

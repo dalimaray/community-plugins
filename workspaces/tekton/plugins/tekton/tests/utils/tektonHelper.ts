@@ -16,6 +16,25 @@
 import { AxeBuilder } from '@axe-core/playwright';
 import { expect, TestInfo, type Page } from '@playwright/test';
 
+/** Matches APP_MODE in playwright.config.ts / package.json e2e scripts. */
+export function isNfsAppMode(): boolean {
+  return process.env.APP_MODE !== 'legacy';
+}
+
+/**
+ * Locator for the Tekton entity tab.
+ * Legacy TabbedLayout uses `header-tab-0`. NFS mounts Tekton on the entity
+ * page via Content navigation links.
+ */
+export function tektonEntityTab(page: Page) {
+  if (!isNfsAppMode()) {
+    return page.getByTestId('header-tab-0');
+  }
+  return page
+    .getByRole('navigation', { name: 'Content navigation' })
+    .locator('a[href$="/tekton"]');
+}
+
 export class Common {
   page: Page;
 
@@ -29,7 +48,6 @@ export class Common {
 
   async loginAsGuest() {
     await this.page.goto('/');
-    // TODO - Remove it after https://issues.redhat.com/browse/RHIDP-2043. A Dynamic plugin for Guest Authentication Provider needs to be created
     this.page.on('dialog', async dialog => {
       await dialog.accept();
     });
@@ -38,9 +56,54 @@ export class Common {
     await this.waitForSideBarVisible();
   }
 
+  /**
+   * Opens the Tekton PipelineRun list. Legacy dev exposes `/tekton`; NFS
+   * mounts Tekton on the catalog entity page.
+   */
+  async navigateToTektonView() {
+    if (!isNfsAppMode()) {
+      await this.page.goto('/tekton');
+    } else {
+      await this.page.goto('/catalog/default/component/backstage/tekton');
+      await this.page.waitForURL(url =>
+        url.pathname.includes('/component/backstage'),
+      );
+      await this.page.waitForLoadState('networkidle');
+      const tektonTab = tektonEntityTab(this.page);
+      await expect(tektonTab).toBeVisible({ timeout: 30000 });
+      await tektonTab.click();
+    }
+
+    await expect(this.page.getByTestId('tekton-progress')).toHaveCount(0);
+  }
+
+  /**
+   * Opens the missing-permission Tekton view. Legacy uses a standalone
+   * `/missing-permissions` page. NFS opens the `permission-denied` catalog
+   * entity; the Tekton tab is hidden via the extension `if` predicate.
+   */
+  async navigateToMissingPermissions() {
+    if (!isNfsAppMode()) {
+      await this.page.goto('/missing-permissions');
+      return;
+    }
+
+    await this.page.goto('/catalog');
+    await this.page
+      .getByRole('row', { name: /permission-denied/ })
+      .getByRole('link')
+      .first()
+      .click();
+    await this.page.waitForLoadState('networkidle');
+    await expect(
+      this.page.getByRole('heading', { name: 'permission-denied' }),
+    ).toBeVisible({ timeout: 30000 });
+  }
+
   async switchToLocale(locale: string): Promise<void> {
     if (locale !== 'en') {
-      const localeString = locale === 'ja' ? '日本語' : locale;
+      const names = new Intl.DisplayNames([locale], { type: 'language' });
+      const localeString = names.of(locale) || locale;
       await this.page.getByRole('button', { name: 'Language' }).click();
       await this.page.getByRole('menuitem', { name: localeString }).click();
     }
@@ -51,11 +114,14 @@ export class Common {
       page: this.page as any,
     })
       .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+      .disableRules(['color-contrast'])
       .analyze();
 
     await testInfo.attach('accessibility-scan-results.json', {
       body: JSON.stringify(accessibilityScanResults.violations, null, 2),
       contentType: 'application/json',
     });
+
+    expect(accessibilityScanResults.violations).toEqual([]);
   }
 }

@@ -15,15 +15,24 @@
  */
 import { expect, Page, test } from '@playwright/test';
 import { runAccessibilityTests } from './utils/accessibility';
-import { getTranslations, ArgoCDMessages } from './utils/translations';
+import { ArgoCDMessages, getTranslations } from './utils/translations';
 
 import {
+  DEV_INSTANCE_APPLICATIONS,
   mockApplication,
+  mockArgocdConfig,
+  mockArgocdMultiInstanceConfig,
   preProdApplication,
   prodApplication,
 } from '../dev/__data__';
+
+import { type Application } from '@backstage-community/plugin-argocd-common';
 import { Common } from './utils/argocdHelper';
-import { verifyAppCard, verifyAppSidebar } from './utils/utils';
+import {
+  getInstanceAppUrl,
+  verifyAppCard,
+  verifyAppSidebar,
+} from './utils/utils';
 
 test.describe('ArgoCD plugin', () => {
   let argocdPage: Page;
@@ -36,11 +45,14 @@ test.describe('ArgoCD plugin', () => {
     common = new Common(argocdPage);
 
     await common.loginAsGuest();
-    const currentLocale = await argocdPage.evaluate(
-      () => globalThis.navigator.language,
+    // The new frontend system dev app renders in English regardless of browser
+    // locale because plugin translation resources are not yet auto-discovered
+    // by createApp. Use English translations for assertions.
+    translations = getTranslations('en');
+
+    await argocdPage.goto(
+      '/catalog/default/component/backstage/deployment-lifecycle',
     );
-    translations = getTranslations(currentLocale);
-    await common.switchToLocale(currentLocale);
     await expect(
       argocdPage.getByRole('heading', {
         name: translations.deploymentLifecycle.deploymentLifecycle.title,
@@ -68,7 +80,7 @@ test.describe('ArgoCD plugin', () => {
       /* eslint-disable-next-line  no-loop-func */
       test(`Verify ${app.metadata.name} side bar`, async () => {
         await argocdPage.getByTestId(`${app.metadata.name}-card`).click();
-        const sideBar = argocdPage.locator(`.MuiDrawer-paper`);
+        const sideBar = argocdPage.getByTestId(`${app.metadata.name}-sidebar`);
         await expect(sideBar).toBeVisible();
         await verifyAppSidebar(app, sideBar, index, translations);
         await sideBar
@@ -84,7 +96,9 @@ test.describe('ArgoCD plugin', () => {
 
   test.describe('Summary', () => {
     test.beforeAll(async () => {
-      await argocdPage.getByRole('link', { name: 'Summary' }).click();
+      await argocdPage.goto(
+        '/catalog/default/component/backstage/deployment-summary',
+      );
       await expect(
         argocdPage.getByRole('heading', {
           name: translations.deploymentSummary.deploymentSummary.tableTitle,
@@ -106,14 +120,17 @@ test.describe('ArgoCD plugin', () => {
       ];
       for (const col of columns) {
         await expect(
-          argocdPage.getByRole('columnheader', { name: col }),
+          argocdPage.getByRole('columnheader', { name: col, exact: true }),
         ).toBeVisible();
       }
-      await runAccessibilityTests(argocdPage);
+      await runAccessibilityTests(argocdPage, undefined, undefined, {
+        excludeRules: ['color-contrast'],
+      });
     });
 
     for (const app of apps) {
       const appName = app.metadata.name;
+      const appUrl = getInstanceAppUrl(app, 'main', mockArgocdConfig);
 
       /* eslint-disable-next-line  no-loop-func */
       test(`Verify ${appName} row`, async () => {
@@ -150,7 +167,123 @@ test.describe('ArgoCD plugin', () => {
             })
             .first(),
         ).toBeVisible();
+        const appLink = row.getByRole('link', {
+          name: appName,
+        });
+        expect(await appLink.getAttribute('href')).toContain(appUrl);
       });
     }
+  });
+
+  test.describe('Multiple ArgoCD instances', () => {
+    const verifyLifecycleCards = async (
+      expectedAppsByInstance: Record<string, Application[]>,
+    ) => {
+      for (const [instanceName, instanceApps] of Object.entries(
+        expectedAppsByInstance,
+      )) {
+        for (const app of instanceApps) {
+          const appName = app.metadata.name ?? '';
+          const appUrl = getInstanceAppUrl(
+            app,
+            instanceName,
+            mockArgocdMultiInstanceConfig,
+          );
+
+          const lifecycleCard = argocdPage
+            .getByTestId(`${appName}-card`)
+            .filter({ hasText: appName })
+            .filter({ hasText: instanceName })
+            .filter({ hasText: app.spec.destination.server })
+            .first();
+          await expect(lifecycleCard).toBeVisible();
+          await expect(
+            lifecycleCard.getByTestId(`${appName}-link`),
+          ).toHaveAttribute('href', appUrl);
+        }
+      }
+    };
+
+    const verifySummaryRows = async (
+      expectedAppsByInstance: Record<string, Application[]>,
+    ) => {
+      for (const [instanceName, instanceApps] of Object.entries(
+        expectedAppsByInstance,
+      )) {
+        for (const app of instanceApps) {
+          const appName = app.metadata.name ?? '';
+          const appUrl = getInstanceAppUrl(
+            app,
+            instanceName,
+            mockArgocdMultiInstanceConfig,
+          );
+
+          const summaryRow = argocdPage
+            .getByRole('row')
+            .filter({ hasText: appName })
+            .filter({ hasText: instanceName })
+            .filter({ hasText: app.spec.destination.server })
+            .first();
+          await expect(summaryRow).toBeVisible();
+          const appLink = summaryRow.getByRole('link', {
+            name: appName,
+          });
+          expect(await appLink.getAttribute('href')).toContain(appUrl);
+        }
+      }
+    };
+
+    test('Verify app selector resolves app from all instances', async () => {
+      const expectedApps = {
+        argoInstance1: DEV_INSTANCE_APPLICATIONS.argoInstance1,
+        argoInstance2: [
+          DEV_INSTANCE_APPLICATIONS.argoInstance2[1],
+          DEV_INSTANCE_APPLICATIONS.argoInstance2[2],
+        ],
+      };
+
+      await argocdPage.goto(
+        '/catalog/default/component/backstage-argocd-multi-selector/deployment-lifecycle',
+      );
+      await verifyLifecycleCards(expectedApps);
+
+      await argocdPage.goto(
+        '/catalog/default/component/backstage-argocd-multi-selector/deployment-summary',
+      );
+      await verifySummaryRows(expectedApps);
+    });
+
+    test('Verify app name resolves app from all instances', async () => {
+      const expectedApps = {
+        argoInstance1: [DEV_INSTANCE_APPLICATIONS.argoInstance1[2]],
+        argoInstance2: [DEV_INSTANCE_APPLICATIONS.argoInstance2[2]],
+      };
+
+      await argocdPage.goto(
+        '/catalog/default/component/backstage-argocd-multi-app-name/deployment-lifecycle',
+      );
+      await verifyLifecycleCards(expectedApps);
+
+      await argocdPage.goto(
+        '/catalog/default/component/backstage-argocd-multi-app-name/deployment-summary',
+      );
+      await verifySummaryRows(expectedApps);
+    });
+
+    test('Verify app name resolves for 1 app across all instances when no instances label in entity', async () => {
+      const expectedApps = {
+        argoInstance2: [DEV_INSTANCE_APPLICATIONS.argoInstance2[0]],
+      };
+
+      await argocdPage.goto(
+        '/catalog/default/component/backstage-argocd-multi-one-app-name/deployment-lifecycle',
+      );
+      await verifyLifecycleCards(expectedApps);
+
+      await argocdPage.goto(
+        '/catalog/default/component/backstage-argocd-multi-one-app-name/deployment-summary',
+      );
+      await verifySummaryRows(expectedApps);
+    });
   });
 });

@@ -1,0 +1,34 @@
+# @backstage-community/plugin-auth-backend-module-pingfederate-provider
+
+## 0.4.0
+
+### Minor Changes
+
+- 094ed44: Backstage version bump to v1.54.5
+
+### Patch Changes
+
+- 26bfeb5: Document starting the dev harness with the package config (--config app-config.yaml or app-config.local.yaml) and explain how that differs from the workspace root default.
+
+## 0.3.0
+
+### Minor Changes
+
+- 99c5b38: Backstage version bump to v1.53.0
+
+## 0.2.0
+
+### Minor Changes
+
+- 80c0e9e: Backstage version bump to v1.52.0
+
+## 0.1.0
+
+### Minor Changes
+
+- 1ae0fc8: Added a new PingFederate auth provider.
+- 881caae: Backstage version bump to v1.51.0
+
+### Patch Changes
+
+- a3f35d7: Added contributor development guides and dev harness `app-config.yaml` files for both plugins. Expanded automated test coverage for PingFederate sign-in resolvers and auth module wiring, and for PingOne catalog module extension points and entity provider registration.

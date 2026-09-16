@@ -1,5 +1,96 @@
 # @backstage-community/plugin-nexus-repository-manager
 
+## 1.27.2
+
+### Patch Changes
+
+- aa39b16: Updated dependency `@playwright/test` to `1.62.1`.
+  Updated dependency `@testing-library/user-event` to `14.6.6`.
+- f7eb124: Updated dependency `@playwright/test` to `1.63.0`.
+- 8735687: Updated dependency `@testing-library/user-event` to `14.6.7`.
+- c031c0a: Backstage version bump to v1.54.7
+
+## 1.27.1
+
+### Patch Changes
+
+- 4a972e2: Updated dependency `react-router-dom` to `^6.30.5`.
+
+## 1.27.0
+
+### Minor Changes
+
+- 5bb7b05: Backstage version bump to v1.54.5
+
+## 1.26.0
+
+### Minor Changes
+
+- 087a229: Add NFS translations module with default export for `packages: all` discovery
+
+## 1.25.1
+
+### Patch Changes
+
+- 60b0cea: Fixed nested interactive controls accessibility violation in artifact table by disabling column dragging
+- 6622075: Updated dependency `@playwright/test` to `1.61.1`.
+- 53f1fff: Updated dependency `@hey-api/openapi-ts` to `0.99.0`.
+- 72557ed: Updated dependency `@types/node` to `22.20.1`.
+
+## 1.25.0
+
+### Minor Changes
+
+- ea029e4: Backstage version bump to v1.51.0
+- 8e77b78: Backstage version bump to v1.52.0
+
+### Patch Changes
+
+- a4d0ef7: Updated dependency `@hey-api/openapi-ts` to `0.98.2`.
+- 387d2e9: Updated dependency `@types/node` to `22.19.19`.
+- 655f29c: Migrated the Nexus Repository Manager plugin UI from Material UI to Backstage UI (`@backstage/ui`). Removed direct MUI dependencies; no breaking API changes.
+
+  Added `@backstage/frontend-test-utils` as a dev dependency so the alpha dev app (`yarn start:alpha`) can resolve `@backstage/plugin-catalog-react/testUtils`. Bumped `react-router-dom` dev dependency to `^6.30.2` to satisfy the peer requirement from `@backstage/frontend-test-utils`.
+
+  Fixed the alpha dev app so `maven-example` loads correctly: the entity-content filter now uses `isNexusRepositoryManagerExperimentalAvailable` (so Maven annotations show the Build Artifacts tab), and the dev mocks include experimental annotations plus Maven fixture data.
+
+## 1.24.1
+
+### Patch Changes
+
+- 69b9fd3: Translations updated for de/es/fr/it/ja
+
+## 1.24.0
+
+### Minor Changes
+
+- 9b1570c: Backstage version bump to v1.50.4
+
+## 1.23.2
+
+### Patch Changes
+
+- 24acada: Updated dependency `@hey-api/openapi-ts` to `0.97.1`.
+
+## 1.23.1
+
+### Patch Changes
+
+- e9a32f2: Updated dependency `@hey-api/openapi-ts` to `0.95.0`.
+- a559dfb: Updated dependency `@types/node` to `22.19.17`.
+
+## 1.23.0
+
+### Minor Changes
+
+- f3daead: Backstage version bump to v1.49.2
+
+## 1.22.3
+
+### Patch Changes
+
+- da31305: Updated dependency `filesize` to `^11.0.0`.
+
 ## 1.22.2
 
 ### Patch Changes

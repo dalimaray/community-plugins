@@ -1,5 +1,23 @@
 # @backstage-community/plugin-apiiro-common
 
+## 1.1.0
+
+### Minor Changes
+
+- febea01: Backstage version bump to v1.52.0
+
+## 1.0.0
+
+### Major Changes
+
+- ff337ee: Configured the application annotation key for system entities.
+
+## 0.2.0
+
+### Minor Changes
+
+- cd2ccac: Backstage version bump to v1.48.2
+
 ## 0.1.0
 
 ### Minor Changes

@@ -13,22 +13,13 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import { useState } from 'react';
-
-import * as React from 'react';
+import { useContext, useEffect, useState } from 'react';
 
 import { ErrorBoundary } from '@backstage/core-components';
 import { RequirePermission } from '@backstage/plugin-permission-react';
 import { kubernetesProxyPermission } from '@backstage/plugin-kubernetes-common';
-
+import { Dialog, DialogBody, DialogHeader, Flex } from '@backstage/ui';
 import { V1Pod } from '@kubernetes/client-node';
-import Box from '@mui/material/Box';
-import Dialog from '@mui/material/Dialog';
-import DialogTitle from '@mui/material/DialogTitle';
-import IconButton from '@mui/material/IconButton';
-import { SelectChangeEvent } from '@mui/material/Select';
-import DialogContent from '@mui/material/DialogContent';
-import CloseIcon from '@mui/icons-material/Close';
 import { Button } from '@patternfly/react-core';
 
 import ResourceName from '../../../common/ResourceName';
@@ -39,6 +30,7 @@ import { PodLogs } from './PodLogs';
 import PodLogsDownload from './PodLogsDownload';
 import { ContainerScope } from './types';
 import { MissingPermissionPage } from '../../permissions/MissingPermissionPage';
+import styles from './PodLogsDialog.module.css';
 
 type PodLogsDialogProps = {
   podData: V1Pod;
@@ -50,7 +42,7 @@ type ViewLogsProps = {
 };
 
 const ViewLogs = ({ podData, onClose }: ViewLogsProps) => {
-  const { clusters, selectedCluster } = React.useContext(K8sResourcesContext);
+  const { clusters, selectedCluster } = useContext(K8sResourcesContext);
   const [logText, setLogText] = useState<string>('');
 
   const curCluster =
@@ -63,19 +55,15 @@ const ViewLogs = ({ podData, onClose }: ViewLogsProps) => {
     (containersList?.length && (containersList?.[0].name ?? '')) || '';
 
   const [containerSelected, setContainerSelected] =
-    React.useState<string>(curContainer);
-  const [podScope, setPodScope] = React.useState<ContainerScope>({
+    useState<string>(curContainer);
+  const [podScope, setPodScope] = useState<ContainerScope>({
     containerName: curContainer,
     podName,
     podNamespace: podNamespace,
     clusterName: curCluster,
   });
 
-  const onContainerChange = (event: SelectChangeEvent) => {
-    setContainerSelected(event.target.value);
-  };
-
-  React.useEffect(() => {
+  useEffect(() => {
     if (containerSelected) {
       setPodScope(ps => ({
         ...ps,
@@ -93,42 +81,39 @@ const ViewLogs = ({ podData, onClose }: ViewLogsProps) => {
     podData?.status?.phase === 'Running';
 
   return (
-    <Dialog maxWidth="xl" fullWidth open onClose={onClose}>
-      <DialogTitle id="dialog-title">
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+    <Dialog
+      isOpen
+      isDismissable
+      className={styles.dialog}
+      onOpenChange={open => {
+        if (!open) onClose?.();
+      }}
+      width="90vw"
+      height="85vh"
+    >
+      <DialogHeader>
+        <Flex className={styles.header}>
           <ResourceName name={podName} kind={podData.kind as string} />
-          <IconButton
-            aria-label="close"
-            onClick={onClose}
-            sx={{
-              position: 'absolute',
-              right: 1,
-              top: 1,
-              color: 'grey.500',
-            }}
-          >
-            <CloseIcon />
-          </IconButton>
           <ContainerSelector
             containersList={containersList}
-            onContainerChange={onContainerChange}
+            onContainerChange={setContainerSelected}
             containerSelected={containerSelected}
           />
           <PodLogsDownload
             logText={logText}
             fileName={`${podName}-${containerSelected}`}
           />
-        </Box>
-      </DialogTitle>
-      <DialogContent>
+        </Flex>
+      </DialogHeader>
+      <DialogBody>
         <RequirePermission
           permission={kubernetesProxyPermission}
           errorPage={
-            <Box pb={3}>
+            <div className={styles.permissionWrapper}>
               <MissingPermissionPage
                 permissions={[kubernetesProxyPermission]}
               />
-            </Box>
+            </div>
           }
         >
           <ErrorBoundary>
@@ -139,14 +124,14 @@ const ViewLogs = ({ podData, onClose }: ViewLogsProps) => {
             />
           </ErrorBoundary>
         </RequirePermission>
-      </DialogContent>
+      </DialogBody>
     </Dialog>
   );
 };
 
 export const PodLogsDialog = ({ podData }: PodLogsDialogProps) => {
   const { t } = useTranslation();
-  const { clusters, selectedCluster } = React.useContext(K8sResourcesContext);
+  const { clusters, selectedCluster } = useContext(K8sResourcesContext);
   const [open, setOpen] = useState<boolean>(false);
 
   const curCluster =

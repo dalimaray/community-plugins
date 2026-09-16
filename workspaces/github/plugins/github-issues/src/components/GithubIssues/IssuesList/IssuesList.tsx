@@ -15,7 +15,6 @@
  */
 
 import { useState, useMemo } from 'react';
-import Box from '@material-ui/core/Box';
 import Pagination from '@material-ui/lab/Pagination';
 import { IssueCard } from '../IssueCard';
 import { IssuesByRepo } from '../../../api';
@@ -90,6 +89,10 @@ export const IssuesList = ({
         ? Object.values(filteredRepos)
             .map(({ issues: { edges } }) => edges)
             .flat()
+            // Guard against `null` nodes that GitHub can return in partial
+            // responses (e.g. "Resource limits for this query exceeded"), which
+            // would otherwise crash the sort/render below.
+            .filter(edge => edge?.node)
             .sort((a, b) => {
               if (a.node.updatedAt > b.node.updatedAt) {
                 return -1;
@@ -108,7 +111,7 @@ export const IssuesList = ({
   );
 
   return (
-    <Box>
+    <div>
       {issues.length > 0 && (
         <RepositoryFilters
           placeholder={`All repositories ${getIssuesCountForFilterLabel(
@@ -162,6 +165,6 @@ export const IssuesList = ({
           onChange={(_, page) => setCurrentPage(page)}
         />
       ) : null}
-    </Box>
+    </div>
   );
 };

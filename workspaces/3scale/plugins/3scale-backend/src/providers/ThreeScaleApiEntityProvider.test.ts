@@ -21,32 +21,47 @@ import {
   SchedulerService,
   SchedulerServiceTaskRunner,
 } from '@backstage/backend-plugin-api';
+import { InputError } from '@backstage/errors';
 import { resolve } from 'path';
 import fs from 'fs';
 
-const requestJsonDataMock = jest.fn().mockResolvedValue([]);
+import type { APIDocElement } from '../clients/types';
 
-global.fetch = jest.fn(() =>
-  Promise.resolve({
-    ok: true,
-    status: 200,
-    json: () => Promise.resolve(requestJsonDataMock()),
-    headers: new Headers(),
-    text: () => Promise.resolve('mocked text data'),
-  } as Response),
-);
+type DeferredEntity = {
+  entity: {
+    kind: string;
+    apiVersion: string;
+    metadata: Record<string, unknown>;
+    spec: Record<string, unknown>;
+  };
+  locationKey: string;
+};
+
+function mockFetchResponses(...responses: unknown[]): jest.SpyInstance {
+  const queue = [...responses];
+  return jest.spyOn(global, 'fetch').mockImplementation(() => {
+    if (queue.length === 0) {
+      return Promise.reject(
+        new Error('Unexpected fetch call: no more mocked responses in queue'),
+      );
+    }
+    const data = queue.shift();
+    return Promise.resolve({
+      ok: true,
+      status: 200,
+      statusText: 'OK',
+      json: () => Promise.resolve(data),
+      headers: new Headers(),
+      text: () => Promise.resolve(''),
+    } as Response);
+  });
+}
 
 const loggerMock = mockServices.logger.mock();
+const schedulerMock = mockServices.scheduler.mock();
 
 const schedulerTaskRunnerMock = {
   run: jest.fn().mockImplementation(),
-};
-
-const shedulerServiceMock = {
-  triggerTask: jest.fn().mockImplementation(),
-  scheduleTask: jest.fn().mockImplementation(),
-  createScheduledTaskRunner: jest.fn().mockImplementation(),
-  getScheduledTasks: jest.fn().mockImplementation(),
 };
 
 const entityProviderConnection = {
@@ -83,31 +98,132 @@ describe('ThreeScaleApiEntityProvider', () => {
     );
   }
 
-  it('should be defined', () => {
-    const threeScaleApiEntityProvider = createApiEntityProvider(
+  it('returns a provider with the expected name from config', () => {
+    const providers = createApiEntityProvider(
       schedulerTaskRunnerMock,
-      shedulerServiceMock,
+      schedulerMock,
     );
-    expect(threeScaleApiEntityProvider).toBeDefined();
-    expect(threeScaleApiEntityProvider).toBeInstanceOf(Array);
-    expect(threeScaleApiEntityProvider.length).toBe(1);
+    expect(providers).toHaveLength(1);
+    expect(providers[0].getProviderName()).toEqual(
+      'ThreeScaleApiEntityProvider:test',
+    );
+  });
+
+  describe('fromConfig', () => {
+    it('throws when neither schedule nor scheduler is provided', () => {
+      expect(() =>
+        ThreeScaleApiEntityProvider.fromConfig(
+          { config: conf, logger: loggerMock },
+          {} as unknown as Parameters<
+            typeof ThreeScaleApiEntityProvider.fromConfig
+          >[1],
+        ),
+      ).toThrow('Either schedule or scheduler must be provided.');
+    });
+
+    it('uses scheduler and per-provider schedule when both are configured', () => {
+      const config = new ConfigReader({
+        catalog: {
+          providers: {
+            threeScaleApiEntity: {
+              test: {
+                baseUrl: 'test',
+                accessToken: 'test',
+                schedule: {
+                  frequency: { hours: 1 },
+                  timeout: { minutes: 10 },
+                },
+              },
+            },
+          },
+        },
+      });
+      const scheduler = mockServices.scheduler.mock();
+
+      ThreeScaleApiEntityProvider.fromConfig({ config, logger: loggerMock }, {
+        scheduler,
+      } as unknown as Parameters<typeof ThreeScaleApiEntityProvider.fromConfig>[1]);
+
+      expect(scheduler.createScheduledTaskRunner).toHaveBeenCalledWith({
+        frequency: { hours: 1 },
+        timeout: { minutes: 10 },
+      });
+    });
+
+    it('uses an injected task runner when schedule is provided without scheduler', () => {
+      const config = new ConfigReader({
+        catalog: {
+          providers: {
+            threeScaleApiEntity: {
+              test: {
+                baseUrl: 'test',
+                accessToken: 'test',
+              },
+            },
+          },
+        },
+      });
+      const taskRunner = { run: jest.fn() };
+
+      const providers = ThreeScaleApiEntityProvider.fromConfig(
+        { config, logger: loggerMock },
+        { schedule: taskRunner } as unknown as Parameters<
+          typeof ThreeScaleApiEntityProvider.fromConfig
+        >[1],
+      );
+
+      expect(providers).toHaveLength(1);
+      expect(providers[0].getProviderName()).toEqual(
+        'ThreeScaleApiEntityProvider:test',
+      );
+    });
+
+    it('throws InputError when scheduler is provided without per-provider or injected schedule', () => {
+      const config = new ConfigReader({
+        catalog: {
+          providers: {
+            threeScaleApiEntity: {
+              test: {
+                baseUrl: 'test',
+                accessToken: 'test',
+              },
+            },
+          },
+        },
+      });
+      const scheduler = mockServices.scheduler.mock();
+
+      expect(() =>
+        ThreeScaleApiEntityProvider.fromConfig({ config, logger: loggerMock }, {
+          scheduler,
+        } as unknown as Parameters<typeof ThreeScaleApiEntityProvider.fromConfig>[1]),
+      ).toThrow(
+        new InputError(
+          'No schedule provided via config for ThreeScaleApiEntityProvider:test.',
+        ),
+      );
+    });
   });
 
   describe('run', () => {
     let threeScaleApiEntityProvider: ThreeScaleApiEntityProvider;
+    let fetchMock: jest.SpyInstance;
+
     beforeEach(async () => {
       entityProviderConnection.applyMutation.mockClear();
       threeScaleApiEntityProvider = createApiEntityProvider(
         schedulerTaskRunnerMock,
-        shedulerServiceMock,
+        schedulerMock,
       )[0];
       await threeScaleApiEntityProvider.connect(entityProviderConnection);
     });
 
-    it('should be created catalog entity with single open API 3.0 doc', async () => {
-      const services = readTestJSONFile('services');
-      requestJsonDataMock.mockResolvedValueOnce(services);
+    afterEach(() => {
+      fetchMock?.mockRestore();
+    });
 
+    it('calls the expected 3scale Admin API endpoints', async () => {
+      const services = readTestJSONFile('services');
       const openAPI3_0Spec = readTestJSONFile('input/open-api-3.0-doc');
       const apiDoc = createAPIDoc(
         'ping',
@@ -116,10 +232,36 @@ describe('ThreeScaleApiEntityProvider', () => {
         openAPI3_0Spec,
       );
       const apiDocs = { api_docs: [apiDoc] };
-      requestJsonDataMock.mockResolvedValueOnce(apiDocs);
-
       const proxy = readTestJSONFile('proxy');
-      requestJsonDataMock.mockResolvedValueOnce(proxy);
+
+      fetchMock = mockFetchResponses(services, apiDocs, proxy);
+
+      await threeScaleApiEntityProvider.run();
+
+      const calledUrls = fetchMock.mock.calls.map(call => String(call[0]));
+      expect(calledUrls[0]).toContain('/admin/api/services.json');
+      expect(calledUrls[0]).toContain('access_token=test');
+      expect(calledUrls[0]).toContain('page=0');
+      expect(calledUrls[0]).toContain('size=500');
+      expect(calledUrls[1]).toContain('/admin/api/active_docs.json');
+      expect(calledUrls[1]).toContain('access_token=test');
+      expect(calledUrls[2]).toContain('/admin/api/services/2/proxy.json');
+      expect(calledUrls[2]).toContain('access_token=test');
+    });
+
+    it('should be created catalog entity with single open API 3.0 doc', async () => {
+      const services = readTestJSONFile('services');
+      const openAPI3_0Spec = readTestJSONFile('input/open-api-3.0-doc');
+      const apiDoc = createAPIDoc(
+        'ping',
+        'ping',
+        'A simple API that responds with the input message.',
+        openAPI3_0Spec,
+      );
+      const apiDocs = { api_docs: [apiDoc] };
+      const proxy = readTestJSONFile('proxy');
+
+      fetchMock = mockFetchResponses(services, apiDocs, proxy);
 
       await threeScaleApiEntityProvider.run();
 
@@ -137,8 +279,6 @@ describe('ThreeScaleApiEntityProvider', () => {
 
     it('should be created catalog entity with single api doc but swagger 2.0 should not be converted to API 3.0', async () => {
       const services = readTestJSONFile('services');
-      requestJsonDataMock.mockResolvedValueOnce(services);
-
       const swagger2_0Spec = readTestJSONFile('input/swagger-2.0-doc');
       const apiDoc = createAPIDoc(
         'list-users',
@@ -147,10 +287,9 @@ describe('ThreeScaleApiEntityProvider', () => {
         swagger2_0Spec,
       );
       const apiDocs = { api_docs: [apiDoc] };
-      requestJsonDataMock.mockResolvedValueOnce(apiDocs);
-
       const proxy = readTestJSONFile('proxy');
-      requestJsonDataMock.mockResolvedValueOnce(proxy);
+
+      fetchMock = mockFetchResponses(services, apiDocs, proxy);
 
       await threeScaleApiEntityProvider.run();
 
@@ -165,7 +304,6 @@ describe('ThreeScaleApiEntityProvider', () => {
 
     it('should be created catalog entity with single api doc but converted from swagger 1.2 to swagger 2.0', async () => {
       const services = readTestJSONFile('services');
-      requestJsonDataMock.mockResolvedValueOnce(services);
       const swagger1_2Spec = readTestJSONFile('input/swagger-1.2-doc');
       const apiDoc = createAPIDoc(
         'get-user-profile-by-id',
@@ -174,9 +312,9 @@ describe('ThreeScaleApiEntityProvider', () => {
         swagger1_2Spec,
       );
       const apiDocs = { api_docs: [apiDoc] };
-      requestJsonDataMock.mockResolvedValueOnce(apiDocs);
       const proxy = readTestJSONFile('proxy');
-      requestJsonDataMock.mockResolvedValueOnce(proxy);
+
+      fetchMock = mockFetchResponses(services, apiDocs, proxy);
 
       await threeScaleApiEntityProvider.run();
 
@@ -194,8 +332,6 @@ describe('ThreeScaleApiEntityProvider', () => {
 
     it('should be created catalog entity with merged 2 open API 3.0 docs', async () => {
       const services = readTestJSONFile('services');
-      requestJsonDataMock.mockResolvedValueOnce(services);
-
       const openAPI3_0Spec1 = readTestJSONFile('input/open-api-3.0-doc');
       const apiDoc1 = createAPIDoc(
         'ping',
@@ -212,11 +348,9 @@ describe('ThreeScaleApiEntityProvider', () => {
       );
 
       const apiDocs = { api_docs: [apiDoc1, apiDoc2] };
-
-      requestJsonDataMock.mockResolvedValueOnce(apiDocs);
-
       const proxy = readTestJSONFile('proxy');
-      requestJsonDataMock.mockResolvedValueOnce(proxy);
+
+      fetchMock = mockFetchResponses(services, apiDocs, proxy);
 
       await threeScaleApiEntityProvider.run();
 
@@ -234,8 +368,6 @@ describe('ThreeScaleApiEntityProvider', () => {
 
     it('should be created catalog entity with merged 3 api docs in different formats', async () => {
       const services = readTestJSONFile('services');
-      requestJsonDataMock.mockResolvedValueOnce(services);
-
       const openAPI3_0Spec1 = readTestJSONFile('input/open-api-3.0-doc');
       const apiDoc1 = createAPIDoc(
         'ping',
@@ -259,11 +391,9 @@ describe('ThreeScaleApiEntityProvider', () => {
       );
 
       const apiDocs = { api_docs: [apiDoc1, apiDoc2, apiDoc3] };
-
-      requestJsonDataMock.mockResolvedValueOnce(apiDocs);
-
       const proxy = readTestJSONFile('proxy');
-      requestJsonDataMock.mockResolvedValueOnce(proxy);
+
+      fetchMock = mockFetchResponses(services, apiDocs, proxy);
 
       await threeScaleApiEntityProvider.run();
 
@@ -281,16 +411,16 @@ describe('ThreeScaleApiEntityProvider', () => {
   });
 });
 
-function readTestJSONFile(fileName: string): any {
+function readTestJSONFile<T>(fileName: string): T {
   const file = resolve(__dirname, `./../__fixtures__/data/${fileName}.json`);
   const fileContent = fs.readFileSync(file, 'utf8');
-  return JSON.parse(fileContent);
+  return JSON.parse(fileContent) as T;
 }
 
 function createExpectedEntity(
   fileWithExpectedOpenAPISpec: string,
   description: string,
-): any {
+): DeferredEntity {
   return {
     entity: {
       kind: 'API',
@@ -338,8 +468,8 @@ function createAPIDoc(
   systemName: string,
   name: string,
   description: string,
-  apiDocBody: any,
-) {
+  apiDocBody: unknown,
+): APIDocElement {
   return {
     api_doc: {
       id: 1,

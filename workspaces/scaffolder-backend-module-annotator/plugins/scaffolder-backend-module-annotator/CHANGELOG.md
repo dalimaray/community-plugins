@@ -1,5 +1,63 @@
 # @backstage-community/plugin-scaffolder-backend-module-annotator
 
+## 2.20.0
+
+### Minor Changes
+
+- 534ec00: Backstage version bump to v1.54.5
+
+## 2.19.1
+
+### Patch Changes
+
+- bc49474: Installed Actions now better describes what each annotator action does and includes template examples for `catalog:annotate`.
+
+## 2.19.0
+
+### Minor Changes
+
+- 4ab17c7: Backstage version bump to v1.53.0
+
+### Patch Changes
+
+- 26bfeb5: Document starting the dev harness with --config app-config.yaml and add a workspace-level app-config.yaml for parity with other harness workspaces.
+
+## 2.18.1
+
+### Patch Changes
+
+- 704b94a: Add module wiring and utility unit tests, a local dev/ harness, and contributor documentation so Backstage dependency bumps are caught by scoped automated tests.
+
+## 2.18.0
+
+### Minor Changes
+
+- 8592e1b: Backstage version bump to v1.52.0
+
+## 2.17.0
+
+### Minor Changes
+
+- 83264d5: Backstage version bump to v1.51.0
+
+## 2.16.1
+
+### Patch Changes
+
+- 0fa0506: Bumped TypeScript to ~5.7 to align with Backstage 1.49 and added @backstage/cli-defaults
+
+## 2.16.0
+
+### Minor Changes
+
+- c386ef9: Backstage version bump to v1.49.3
+
+## 2.15.0
+
+### Minor Changes
+
+- 7d83040: Backstage version bump to v1.48.4
+
 ## 2.14.0
 
 ### Minor Changes

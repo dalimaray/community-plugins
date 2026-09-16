@@ -1,5 +1,29 @@
 # @backstage-community/plugin-kiali-common
 
+## 0.11.2
+
+### Patch Changes
+
+- 6d02d79: Bumped Backstage dependencies to 1.52.0 for Red Hat Developer Hub 1.11 compatibility.
+
+## 0.11.1
+
+### Patch Changes
+
+- e9247c7: Bumped Backstage dependencies to 1.49.4 for Red Hat Developer Hub 1.10 compatibility.
+
+## 0.11.0
+
+### Minor Changes
+
+- 9ae7745: Adapt Ambient changes
+
+## 0.10.0
+
+### Minor Changes
+
+- 93d62a4: Fix JS error. Update dependencies
+
 ## 0.9.0
 
 ### Minor Changes

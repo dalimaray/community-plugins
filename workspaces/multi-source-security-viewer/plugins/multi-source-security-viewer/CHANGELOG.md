@@ -1,5 +1,164 @@
 # @backstage-community/plugin-multi-source-security-viewer
 
+## 1.0.1
+
+### Patch Changes
+
+- 1a75d7a: Updated dependency `@backstage-community/plugin-azure-devops` to `^0.34.0`.
+  Updated dependency `@backstage-community/plugin-azure-devops-common` to `^0.26.0`.
+  Updated dependency `@backstage-community/plugin-jenkins` to `^0.34.0`.
+  Updated dependency `@playwright/test` to `1.62.1`.
+
+## 1.0.0
+
+### Major Changes
+
+- 9e0d504: Migrate Multi-Source-Security-Viewer plugin to the new frontend system (NFS). Legacy (OFS) exports are available from the `/legacy` subpath.
+
+  **BREAKING:** The default export is now the NFS plugin created with `createFrontendPlugin`. Named exports (`multiSourceSecurityViewerPlugin`, `EntityMultiCIPipelinesContent`, `isMultiCIAvailable`, `isMultiCIAvailableAndEnabled`) have been moved to the `/legacy` subpath.
+
+  To migrate existing OFS usage, update imports:
+
+  ```diff
+  - import {
+  -   multiSourceSecurityViewerPlugin,
+  -   EntityMultiCIPipelinesContent,
+  -   isMultiCIAvailable,
+  -   isMultiCIAvailableAndEnabled,
+  - } from '@backstage-community/plugin-multi-source-security-viewer';
+  + import {
+  +   multiSourceSecurityViewerPlugin,
+  +   EntityMultiCIPipelinesContent,
+  +   isMultiCIAvailable,
+  +   isMultiCIAvailableAndEnabled,
+  + } from '@backstage-community/plugin-multi-source-security-viewer/legacy';
+  ```
+
+  For the new frontend system, import the default export:
+
+  ```ts
+  import multiSourceSecurityViewerPlugin from '@backstage-community/plugin-multi-source-security-viewer';
+  ```
+
+  The NFS CI/CD Security tab uses `isMultiCIAvailableAndEnabled`, so it only appears when the entity has both a CI provider annotation and `mssv/enabled: 'true'`. If you previously showed the tab based only on CI annotations (`isMultiCIAvailable`), add the enabled annotation:
+
+  ```yaml
+  metadata:
+    annotations:
+      mssv/enabled: 'true'
+  ```
+
+### Minor Changes
+
+- 26c86ca: Backstage version bump to v1.52.0
+- e716897: Backstage version bump to v1.54.5
+
+### Patch Changes
+
+- Updated dependencies [26c86ca]
+- Updated dependencies [e716897]
+  - @backstage-community/plugin-multi-source-security-viewer-common@0.16.0
+
+## 0.17.3
+
+### Patch Changes
+
+- 5f10f30: Updated dependency `@backstage-community/plugin-azure-devops-common` to `^0.24.0`.
+
+## 0.17.2
+
+### Patch Changes
+
+- 6622075: Updated dependency `@playwright/test` to `1.61.1`.
+- 691d8f5: Updated dependency `@backstage-community/plugin-github-actions` to `^0.23.0`.
+- 926ee34: Updated dependency `@backstage-community/plugin-azure-devops` to `^0.32.0`.
+
+## 0.17.1
+
+### Patch Changes
+
+- 0c2526c: Updated dependency `@backstage-community/plugin-jenkins` to `^0.32.0`.
+- ea6e9a0: Updated dependency `@backstage-community/plugin-azure-devops-common` to `^0.23.0`.
+- d47abdd: Updated dependency `@backstage-community/plugin-azure-devops` to `^0.31.0`.
+
+## 0.17.0
+
+### Minor Changes
+
+- 6a61be0: Backstage version bump to v1.51.0
+
+### Patch Changes
+
+- Updated dependencies [6a61be0]
+  - @backstage-community/plugin-multi-source-security-viewer-common@0.15.0
+
+## 0.16.0
+
+### Minor Changes
+
+- 7d45b9d: Backstage version bump to v1.50.4
+
+### Patch Changes
+
+- Updated dependencies [7d45b9d]
+  - @backstage-community/plugin-multi-source-security-viewer-common@0.14.0
+
+## 0.15.3
+
+### Patch Changes
+
+- 58cda68: Updated dependency `@immobiliarelabs/backstage-plugin-gitlab` to `^7.0.0`.
+
+## 0.15.2
+
+### Patch Changes
+
+- 33fff24: Updated dependency `@backstage-community/plugin-azure-devops-common` to `^0.21.0`.
+
+## 0.15.1
+
+### Patch Changes
+
+- 29371ff: Updated dependency `@backstage-community/plugin-jenkins` to `^0.30.0`.
+- 4e630e4: Updated dependency `@backstage-community/plugin-github-actions` to `^0.22.0`.
+- edbdf1a: Updated dependency `@backstage-community/plugin-azure-devops` to `^0.29.0`.
+
+## 0.15.0
+
+### Minor Changes
+
+- 179f726: Backstage version bump to v1.49.2
+
+### Patch Changes
+
+- Updated dependencies [179f726]
+  - @backstage-community/plugin-multi-source-security-viewer-common@0.13.0
+
+## 0.14.1
+
+### Patch Changes
+
+- 0467b33: Updated dependency `@testing-library/react` to `^16.0.0`.
+  Updated dependency `@testing-library/dom` to `10.4.1`.
+  Updated dependency `@testing-library/jest-dom` to `^6.0.0`.
+- a7cbd3f: Backstage version bump to v1.48.5
+- Updated dependencies [a7cbd3f]
+  - @backstage-community/plugin-multi-source-security-viewer-common@0.12.1
+
+## 0.14.0
+
+### Minor Changes
+
+- d9a66c5: Backstage version bump to v1.48.4
+
+### Patch Changes
+
+- 39da154: Updated dependency `@backstage-community/plugin-github-actions` to `^0.21.0`.
+- f38f7ba: Updated dependency `@backstage-community/plugin-azure-devops` to `^0.28.0`.
+- 73fd985: Updated dependency `@backstage-community/plugin-azure-devops-common` to `^0.20.0`.
+- Updated dependencies [d9a66c5]
+  - @backstage-community/plugin-multi-source-security-viewer-common@0.12.0
+
 ## 0.13.1
 
 ### Patch Changes

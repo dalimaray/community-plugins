@@ -1,5 +1,53 @@
 # @backstage-community/plugin-todo-backend
 
+## 0.25.0
+
+### Minor Changes
+
+- 50dd95d: Backstage version bump to v1.54.5
+
+## 0.24.0
+
+### Minor Changes
+
+- 65e5eb0: Backstage version bump to v1.53.0
+
+## 0.23.0
+
+### Minor Changes
+
+- 1f7d9c9: Backstage version bump to v1.52.0
+
+## 0.22.0
+
+### Minor Changes
+
+- e5b3f26: Backstage version bump to v1.51.0
+
+## 0.21.1
+
+### Patch Changes
+
+- c120454: Updated dependency `@types/supertest` to `^7.0.0`.
+
+## 0.21.0
+
+### Minor Changes
+
+- 5726f4f: Backstage version bump to v1.50.2
+
+## 0.20.0
+
+### Minor Changes
+
+- e061852: Backstage version bump to v1.50.1
+
+## 0.19.0
+
+### Minor Changes
+
+- 2bca458: Backstage version bump to v1.49.2
+
 ## 0.18.1
 
 ### Patch Changes

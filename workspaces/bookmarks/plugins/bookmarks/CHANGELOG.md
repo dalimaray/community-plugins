@@ -1,5 +1,53 @@
 # @backstage-community/plugin-bookmarks
 
+## 0.14.1
+
+### Patch Changes
+
+- 031ce1e: Fix config schema loading failing for the published package. `config.d.ts` referenced a type from the `src` folder, which is not shipped in the npm package, so apps depending on the plugin failed with:
+
+  ```
+  Error: The TypeScript configuration schema for package '@backstage-community/plugin-bookmarks' contains an error - node_modules/@backstage-community/plugin-bookmarks/config.d.ts(17,38): error TS2307: Cannot find module './src/hooks/useCustomProtocol' or its corresponding type declarations.
+  ```
+
+  The schema is now self-contained.
+
+## 0.14.0
+
+### Minor Changes
+
+- b17d04d: Backstage version bump to v1.54.5
+
+## 0.13.0
+
+### Minor Changes
+
+- cb4bc78: Backstage version bump to v1.53.0
+
+## 0.12.0
+
+### Minor Changes
+
+- eb6a9c7: Backstage version bump to v1.52.0
+
+## 0.11.0
+
+### Minor Changes
+
+- 66f9cd5: Backstage version bump to v1.51.0
+
+## 0.10.0
+
+### Minor Changes
+
+- 1386c86: Backstage version bump to v1.50.2
+
+## 0.9.0
+
+### Minor Changes
+
+- 0cd7087: Backstage version bump to v1.49.2
+
 ## 0.8.0
 
 ### Minor Changes

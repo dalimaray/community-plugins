@@ -1,6 +1,6 @@
 # Conditional Permission Policies
 
-The Backstage permission framework provides conditions, and the RBAC backend plugin supports this feature. Conditions work like content filters for Backstage resources (provided by plugins). The RBAC backend API stores conditions assigned to the role in the database. When a user requests access to the frontend resources, the RBAC backend API searches for corresponding conditions and delegates the condition for this resource to the corresponding plugin by its plugin ID. If a user was assigned to multiple roles, and each of these roles contains its own condition, the RBAC backend merges conditions using the anyOf criteria.
+The Backstage permission framework provides conditions, and the RBAC backend plugin supports this feature. Conditions work like content filters for Backstage resources (provided by plugins). The RBAC backend API stores conditions assigned to the role in the database. When a user requests access to the frontend resources, the RBAC backend API searches for corresponding conditions and delegates the condition for this resource to the corresponding plugin by its plugin ID. If a user was assigned to multiple roles, and each of these roles contains its own condition, the RBAC backend merges conditions using the anyOf criteria. This applies equally to action-only (broad) and named `{name, action}` permission mappings — if one role uses `['read']` and another uses `[{name: 'catalog.entity.read', action: 'read'}]`, both conditions are collected and merged with anyOf.
 
 The corresponding plugin analyzes conditional parameters and makes a decision about which part of the content the user should see. Consequently, the user can view not all resource content but only some allowed parts. The RBAC backend plugin supports conditions bounded to the RBAC role.
 
@@ -14,14 +14,14 @@ The plugin defines the supported condition parameters. API users can retrieve th
 
 The structure of the condition JSON object is as follows:
 
-| Json field        | Description                                                           | Type         |
-| ----------------- | --------------------------------------------------------------------- | ------------ |
-| result            | Always has the value "CONDITIONAL"                                    | String       |
-| roleEntityRef     | String entity reference to the RBAC role ('role:default/dev')         | String       |
-| pluginId          | Corresponding plugin ID (e.g., "catalog")                             | String       |
-| permissionMapping | Array permission actions (['read', 'update', 'delete'])               | String array |
-| resourceType      | Resource type provided by the plugin (e.g., "catalog-entity")         | String       |
-| conditions        | Condition JSON with parameters or array parameters joined by criteria | JSON         |
+| Json field        | Description                                                                                             | Type         |
+| ----------------- | ------------------------------------------------------------------------------------------------------- | ------------ |
+| result            | Always has the value "CONDITIONAL"                                                                      | String       |
+| roleEntityRef     | String entity reference to the RBAC role ('role:default/dev')                                           | String       |
+| pluginId          | Corresponding plugin ID (e.g., "catalog")                                                               | String       |
+| permissionMapping | Distinct Backstage permission actions only (`create`, `read`, `update`, `delete`, `use`); no duplicates | String array |
+| resourceType      | Resource type provided by the plugin (e.g., "catalog-entity")                                           | String       |
+| conditions        | Condition JSON with parameters or array parameters joined by criteria                                   | JSON         |
 
 To get the available conditional rules that can be used to create conditional permission policies, use the GET API request `api/permission/plugins/condition-rules` as seen below.
 

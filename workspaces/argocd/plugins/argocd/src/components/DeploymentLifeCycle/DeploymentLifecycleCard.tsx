@@ -17,15 +17,10 @@ import type { FC } from 'react';
 
 import { useEntity } from '@backstage/plugin-catalog-react';
 
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  createStyles,
-  Divider,
-  makeStyles,
-  Theme,
-} from '@material-ui/core';
+import Card from '@mui/material/Card';
+import CardContent from '@mui/material/CardContent';
+import CardHeader from '@mui/material/CardHeader';
+import Divider from '@mui/material/Divider';
 
 import {
   Application,
@@ -42,31 +37,24 @@ import AppCommitLink from '../Common/AppCommitLink';
 import MetadataItemWithTooltip from '../Common/MetadataItemWithTooltip';
 import { useTranslation } from '../../hooks/useTranslation';
 
-const useCardStyles = makeStyles<Theme>(theme =>
-  createStyles({
-    card: {
-      flex: '0 0 auto',
-      marginRight: theme.spacing(2.5),
-      maxWidth: '300px',
-    },
-  }),
-);
-
 interface DeploymentLifecycleCardProps {
   app: Application;
   revisions: RevisionInfo[];
   onclick?: () => void;
+  showInstance?: boolean;
+  showServer?: boolean;
 }
 
 const DeploymentLifecycleCard: FC<DeploymentLifecycleCardProps> = ({
   app,
   onclick,
   revisions,
+  showInstance = true,
+  showServer = true,
 }) => {
   const appName = app?.metadata?.instance?.name ?? 'default';
   const appHistory = app?.status?.history ?? [];
-  const latestRevision = appHistory[appHistory.length - 1];
-  const classes = useCardStyles();
+  const latestRevision = appHistory.at(-1);
   const { entity } = useEntity();
   const { t } = useTranslation();
 
@@ -78,8 +66,10 @@ const DeploymentLifecycleCard: FC<DeploymentLifecycleCardProps> = ({
     <Card
       data-testid={`${app?.metadata?.name}-card`}
       key={app?.metadata?.uid}
-      className={classes.card}
-      style={{
+      sx={{
+        flex: '0 0 auto',
+        mr: 2.5,
+        maxWidth: '300px',
         cursor: onclick ? 'pointer' : 'default',
         justifyContent: 'space-between',
       }}
@@ -96,26 +86,31 @@ const DeploymentLifecycleCard: FC<DeploymentLifecycleCardProps> = ({
 
       <CardContent>
         <Metadata direction={{ sm: 'column' }} gap={{ sm: 'gapMd' }}>
+          {showInstance && (
+            <MetadataItem
+              key="instance"
+              title={t('deploymentLifecycle.deploymentLifecycleCard.instance')}
+            >
+              {appName}
+            </MetadataItem>
+          )}
+          {showServer && (
+            <MetadataItem
+              key="server"
+              title={t('deploymentLifecycle.deploymentLifecycleCard.server')}
+            >
+              <AppServerLink application={app} />
+            </MetadataItem>
+          )}
           <MetadataItem
-            title={t('deploymentLifecycle.deploymentLifecycleCard.instance')}
-          >
-            {appName}
-          </MetadataItem>
-
-          <MetadataItem
-            title={t('deploymentLifecycle.deploymentLifecycleCard.server')}
-          >
-            <AppServerLink application={app} />
-          </MetadataItem>
-
-          <MetadataItem
+            key="namespace"
             title={t('deploymentLifecycle.deploymentLifecycleCard.namespace')}
           >
             <AppNamespace app={app} />
           </MetadataItem>
-
-          {!isAppHelmChartType(app) ? (
+          {!isAppHelmChartType(app) && latestRevision && (
             <MetadataItemWithTooltip
+              key="commit"
               title={t('deploymentLifecycle.deploymentLifecycleCard.commit')}
               tooltipText={t(
                 'deploymentLifecycle.deploymentLifecycleCard.tooltipText',
@@ -128,11 +123,9 @@ const DeploymentLifecycleCard: FC<DeploymentLifecycleCardProps> = ({
                 latestRevision={latestRevision}
               />
             </MetadataItemWithTooltip>
-          ) : (
-            <></>
           )}
-
           <MetadataItem
+            key="resources"
             title={t('deploymentLifecycle.deploymentLifecycleCard.resources')}
           >
             {app.status.resources?.length ?? 0}{' '}

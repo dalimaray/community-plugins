@@ -6,6 +6,8 @@ The Backstage permission framework is a core component of the Backstage project,
 
 With the RBAC plugin, you'll have the means to efficiently administer permissions within your Backstage instance by assigning them to users and groups.
 
+For local development and CI commands, see [CONTRIBUTING.md](./CONTRIBUTING.md).
+
 ## Prerequisites
 
 Before you dive into utilizing the RBAC plugin for Backstage, there are a few essential prerequisites to ensure a seamless experience. Please review the following requirements to make sure your environment is properly set up
@@ -81,9 +83,65 @@ permission:
       superUsers:
         - name: user:default/alice
         - name: user:default/mike
+        - name: group:default/admins
 ```
 
+> **Note:** **Transient memberships are not supported for `superUsers`.** Meaning, when a group is specified as a super user, only direct group memberships are taken into account. Users who belong to a sub-group of a configured super user group will not be granted super user access.
+
 For more information on the available API endpoints accessible to the policy administrators, refer to the [API documentation](./docs/apis.md).
+
+### Use ownership entity refs for role membership
+
+When users sign in without catalog `memberOf` relations (for example, via a custom sign-in resolver that issues ownership entity refs in the token), you can enable `useOwnershipEntityRefs` so group-to-role bindings are evaluated from those token claims in addition to catalog membership.
+
+> **Warning:** When this option is enabled, RBAC trusts the ownership entity refs issued by the sign-in resolver when resolving direct role bindings. Ensure that the resolver only includes user and group refs that the authenticated user is authorized to claim, because an incorrect group ref could grant that group's permissions.
+
+```YAML
+permission:
+  rbac:
+    useOwnershipEntityRefs: true
+```
+
+With this enabled, a user whose sign-in resolver issues:
+
+```ts
+ctx.issueToken({
+  claims: {
+    sub: 'user:default/john.doe',
+    ent: ['user:default/john.doe', 'group:default/oncall'],
+  },
+});
+```
+
+will receive roles bound to `group:default/oncall` via CSV policies such as `g, group:default/oncall, role:default/oncall`, even when the user has no catalog `memberOf` relation to that group.
+
+> **Note:** Only direct bindings are supported — subgroup hierarchy is not traversed, similar to `superUsers`.
+
+Ownership entity refs do not create User or Group entities in the catalog. References that do not exist in the catalog will therefore not appear in the RBAC frontend and cannot be selected there when assigning members to roles. Administrators must define bindings for those references in the CSV policy file; the YAML application configuration only enables this behavior. Groups that already exist in the catalog can still be assigned to roles through the RBAC frontend, while membership supplied by the sign-in token is resolved at runtime.
+
+### Configure default role
+
+You can optionally assign a default role to all authenticated users by using `defaultPermissions.defaultRole`.
+This ensures that every authenticated user receives the specified role in addition to any other roles they may have.
+You can also define baseline permissions for that role using `defaultPermissions.basicPermissions`.
+This is especially useful when using [Sign-In without Users in the Catalog](https://backstage.io/docs/auth/identity-resolver/#sign-in-without-users-in-the-catalog).
+
+```YAML
+permission:
+  rbac:
+    defaultPermissions:
+      defaultRole: role:default/my-default-role
+      basicPermissions:
+        - permission: catalog.entity.read
+          action: read
+        - permission: catalog-entity
+          action: read
+        - permission: catalog.entity.create
+          action: create
+```
+
+If configured, the RBAC backend will automatically include the default role in each authenticated user's roles and evaluate the configured `basicPermissions` for that role.
+When `defaultPermissions.defaultRole` is set, `defaultPermissions.basicPermissions` must contain at least one permission entry.
 
 ### Configure plugins with permission
 
@@ -190,6 +248,19 @@ For more information on the available permissions, refer to the [RBAC permission
 
 We also have a fairly strict validation for permission policies and roles based on the originating role's source information, refer to the [api documentation](./docs/apis.md).
 
+#### Policy validation and compatibility (hardening)
+
+Recent releases tighten validation so malformed or unsafe policy data cannot poison the Casbin store (which uses CSV-shaped persistence for database-backed policies). In practice:
+
+- **`permission` values must not contain double quotes (`"`)** on REST writes, CSV file import, providers, and configured `defaultPermissions.basicPermissions`. Values that previously slipped through could break policy loading; they are now rejected up front. See [API documentation](./docs/apis.md) for the REST contract.
+- **Full policy reload failures are surfaced correctly**: if the enforcer cannot reload policies from storage (for example due to legacy poisoned rows), errors propagate after audit logging instead of leaving a stale model and misleading follow-on errors.
+- **Policy write APIs** expect bodies in the documented shapes (for example, `POST`/`DELETE` `/policies` bodies must be JSON **arrays**). Invalid shapes return `400` with clear messages where applicable.
+- **Configured admins and default permissions** are validated with the same policy rules as runtime writes where relevant, so bad config fails early at startup or sync instead of corrupting storage.
+- **Plugin ID registration** (`POST`/`DELETE` `/plugins/id`) enforces sensible bounds (list size, per-ID length, no duplicates). Very large registrations may need to be split into multiple requests.
+- **CSV policy files** (`policies-csv-file`) are parsed **line by line**. Lines that are syntactically invalid for CSV parsing are **skipped with a warning** so the rest of the file can still be applied; fix or remove bad lines in the file for a fully consistent load. Semantic validation (invalid entity refs, duplicates, source mismatches) continues to skip individual rows with warnings, as before.
+
+- **Conditional policies**: `permissionMapping` must list **distinct** Backstage permission actions only (no duplicates), with at most one entry per supported action (`create`, `read`, `update`, `delete`, `use`). Criteria trees and YAML conditional files still support optional `permission.rbac.validation.*` limits described below.
+
 ### Configuring conditional policies via file
 
 The RBAC plugin allows you to import conditional policies from an external file. User can defined conditional policies for roles created with the help of the policies-csv-file. Conditional policies should be defined as object sequences in the YAML format.
@@ -217,7 +288,30 @@ permission:
 
 This feature supports nested conditional policies.
 
-Example of the conditional policies file:
+#### `permissionMapping` format
+
+The `permissionMapping` field accepts two formats:
+
+**Action-only (broad match)** — matches all permissions with this action for the given `resourceType`:
+
+```yaml
+permissionMapping:
+  - read
+```
+
+**Named permission (specific match)** — matches only the exact named permission. Use this when a plugin registers multiple permissions with the same `(resourceType, action)` pair and you need to target a specific one:
+
+```yaml
+permissionMapping:
+  - name: scaffolder.template.parameter.read
+    action: read
+```
+
+Each `permissionMapping` array should use one format consistently — either action-only entries for broad matching or `{name, action}` entries for specific matching.
+
+#### Examples
+
+Basic example with action-only mapping:
 
 ```yaml
 ---
@@ -250,7 +344,78 @@ conditions:
       - group:default/team-a
 ```
 
+Example with named permission mapping for scaffolder (targeting only template parameter read, not step read):
+
+```yaml
+---
+result: CONDITIONAL
+roleEntityRef: role:default/test
+pluginId: scaffolder
+resourceType: scaffolder-template
+permissionMapping:
+  - name: scaffolder.template.parameter.read
+    action: read
+conditions:
+  rule: HAS_TAG
+  resourceType: scaffolder-template
+  params:
+    tag: secret
+```
+
 Information about condition policies format you can find in the doc: [Conditional policies documentation](./docs/conditions.md). There is only one difference: yaml format compare to json. But yaml and json are back convertiable.
+
+#### REST API
+
+When creating or updating conditional policies via the REST API (`POST /roles/conditions`, `PUT /roles/conditions/:id`), `permissionMapping` entries must include the permission name:
+
+```json
+{
+  "result": "CONDITIONAL",
+  "roleEntityRef": "role:default/test",
+  "pluginId": "catalog",
+  "resourceType": "catalog-entity",
+  "permissionMapping": [{ "name": "catalog.entity.read", "action": "read" }],
+  "conditions": {
+    "rule": "IS_ENTITY_OWNER",
+    "resourceType": "catalog-entity",
+    "params": { "claims": ["group:default/team-a"] }
+  }
+}
+```
+
+The YAML file format additionally supports action-only entries (`['read']`) for broad matching, since YAML-sourced conditions are not editable through the UI. RBAC provider module supports both formats too.
+
+### Optional validation limits for conditional policies
+
+The RBAC backend now supports configurable limits for conditional policy payload complexity and conditional YAML file ingestion size. Defaults are chosen to be protective while still supporting typical policy definitions.
+
+Use these settings if your environment has larger policy sets and needs temporary tuning during upgrades:
+
+```YAML
+permission:
+  enabled: true
+  rbac:
+    validation:
+      conditionalPolicies:
+        maxConditionDepth: 12
+        maxConditionNodeCount: 256
+        maxCriteriaItems: 64
+      conditionalPoliciesFile:
+        maxBytes: 1048576
+        maxDocuments: 256
+```
+
+Field descriptions:
+
+- `permission.rbac.validation.conditionalPolicies.maxConditionDepth`: Maximum nesting depth in a conditional criteria tree.
+- `permission.rbac.validation.conditionalPolicies.maxConditionNodeCount`: Maximum number of criteria nodes in a conditional criteria tree.
+- `permission.rbac.validation.conditionalPolicies.maxCriteriaItems`: Maximum number of entries allowed per `allOf`/`anyOf`.
+- `permission.rbac.validation.conditionalPoliciesFile.maxBytes`: Maximum allowed byte size for `conditionalPoliciesFile`.
+- `permission.rbac.validation.conditionalPoliciesFile.maxDocuments`: Maximum number of YAML documents allowed in `conditionalPoliciesFile`.
+
+All values must be positive integers.
+
+If you already use very large conditional payloads or YAML files, raise these limits in config during upgrade rather than relying on defaults.
 
 ### Configuring Database Storage for policies
 
@@ -260,6 +425,28 @@ The RBAC plugin offers the option to store policies in a database. It supports t
 - postgres: Recommended for production environments.
 
 Ensure that you have already configured the database backend for your Backstage instance, as the RBAC plugin utilizes the same database configuration.
+
+#### Database connections and pool limits
+
+The RBAC backend currently uses **two separate PostgreSQL connection paths** for the database:
+
+1. **Knex** — conditional policies, role metadata, etc for the permission plugin
+2. **TypeORM (Casbin adapter)** — Casbin policy storage for RBAC
+
+Each path maintains its own connection pool. In horizontally scaled (HA) deployments, this extra pool can contribute to maxing out connection resources.
+
+**Mitigations today:**
+
+- Lower `backend.database.knexConfig.pool.max` to reduce per-plugin pool size.
+- Size your PostgreSQL instance to account for total connections across all Backstage core plugins and RBAC's Casbin pool.
+
+Consolidating RBAC onto a single shared database connection for both Knex and Casbin is a known improvement area to be addressed in the future.
+
+#### Passwordless PostgreSQL in the Cloud
+
+The RBAC plugin stores policies in the same database configured under `backend.database`. Passwordless authentication is supported when Backstage configures a dynamic Knex connection resolver, including **Azure Database for PostgreSQL with Entra authentication** (`connection.type: azure`) and **AWS RDS with IAM authentication** (`connection.type: rds`). Configure `backend.database` the same way as the rest of your Backstage instance — see [Passwordless PostgreSQL in the Cloud](https://backstage.io/docs/getting-started/config/database/#passwordless-postgresql-in-the-cloud) in the Backstage documentation. No additional RBAC-specific database configuration is required.
+
+Google Cloud SQL with Cloud IAM (`connection.type: cloudsql`) is not supported for RBAC policy storage yet.
 
 ### Optional maximum depth
 

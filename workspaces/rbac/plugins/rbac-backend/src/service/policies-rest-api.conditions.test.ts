@@ -23,11 +23,7 @@ import {
 
 import express from 'express';
 
-import {
-  PermissionAction,
-  PermissionInfo,
-  RoleConditionalPolicyDecision,
-} from '@backstage-community/plugin-rbac-common';
+import { RoleConditionalPolicyDecision } from '@backstage-community/plugin-rbac-common';
 
 import { EnforcerDelegate } from './enforcer-delegate';
 import { PluginPermissionMetadataCollector } from './plugin-endpoints';
@@ -52,6 +48,7 @@ import request from 'supertest';
 import { RoleMetadataDao } from '../database/role-metadata';
 import { RBACFilters } from '../permissions/rules';
 import { ExtendablePluginIdProvider } from './extendable-id-provider';
+import { DEFAULT_CONDITION_VALIDATION_LIMITS } from '../validation/condition-validation';
 
 jest.setTimeout(60000);
 
@@ -61,14 +58,14 @@ jest.mock('@backstage/plugin-auth-node', () => ({
 
 const validateRoleConditionMock = jest.fn().mockImplementation();
 jest.mock('../validation/condition-validation', () => {
+  const actual = jest.requireActual('../validation/condition-validation');
   return {
+    ...actual,
     validateRoleCondition: jest
       .fn()
-      .mockImplementation(
-        (condition: RoleConditionalPolicyDecision<PermissionAction>) => {
-          validateRoleConditionMock(condition);
-        },
-      ),
+      .mockImplementation((condition: RoleConditionalPolicyDecision) => {
+        validateRoleConditionMock(condition);
+      }),
   };
 });
 
@@ -101,13 +98,13 @@ const mockPermissionEvaluator = {
   authorizeConditional: mockedAuthorizeConditional,
 };
 
-const conditions: RoleConditionalPolicyDecision<PermissionInfo>[] = [
+const conditions: RoleConditionalPolicyDecision[] = [
   {
     id: 1,
     pluginId: 'catalog',
     roleEntityRef: 'role:default/test',
     resourceType: 'catalog-entity',
-    permissionMapping: [{ name: 'catalog.entity.read', action: 'read' }],
+    permissionMapping: ['read'],
     result: AuthorizeResult.CONDITIONAL,
     conditions: {
       rule: 'IS_ENTITY_OWNER',
@@ -120,7 +117,7 @@ const conditions: RoleConditionalPolicyDecision<PermissionInfo>[] = [
     pluginId: 'catalog',
     roleEntityRef: 'role:default/guest',
     resourceType: 'catalog-entity',
-    permissionMapping: [{ name: 'catalog.entity.read', action: 'read' }],
+    permissionMapping: ['read'],
     result: AuthorizeResult.CONDITIONAL,
     conditions: {
       rule: 'IS_ENTITY_OWNER',
@@ -130,7 +127,7 @@ const conditions: RoleConditionalPolicyDecision<PermissionInfo>[] = [
   },
 ];
 
-const expectedConditions: RoleConditionalPolicyDecision<PermissionAction>[] = [
+const expectedConditions: RoleConditionalPolicyDecision[] = [
   {
     id: 1,
     pluginId: 'catalog',
@@ -315,6 +312,8 @@ describe('REST policies api with conditions', () => {
       roleMetadataStorageMock,
       permissionDependentPluginStoreMock,
       extendablePluginIdProviderMock as ExtendablePluginIdProvider,
+      DEFAULT_CONDITION_VALIDATION_LIMITS,
+      undefined,
     );
 
     const router = await server.serve();
@@ -345,6 +344,7 @@ describe('REST policies api with conditions', () => {
           memberReferences: ['group:default/test'],
           name: 'role:default/test',
           metadata: {
+            isDefault: false,
             source: 'rest',
             modifiedBy: 'user:default/some_user',
             owner: 'user:default/mock',
@@ -363,6 +363,7 @@ describe('REST policies api with conditions', () => {
           memberReferences: ['group:default/test'],
           name: 'role:default/test',
           metadata: {
+            isDefault: false,
             source: 'rest',
             modifiedBy: 'user:default/some_user',
             owner: 'user:default/mock',
@@ -901,22 +902,73 @@ describe('REST policies api with conditions', () => {
     });
   });
 
+  describe('POST /roles/conditions', () => {
+    it('should reject action-only permissionMapping via REST', async () => {
+      const conditionDecision: RoleConditionalPolicyDecision = {
+        id: 1,
+        pluginId: 'catalog',
+        roleEntityRef: 'role:default/test',
+        resourceType: 'catalog-entity',
+        permissionMapping: ['read'],
+        result: AuthorizeResult.CONDITIONAL,
+        conditions: {
+          rule: 'IS_ENTITY_OWNER',
+          resourceType: 'catalog-entity',
+          params: { claims: ['group:default/team-a'] },
+        },
+      };
+      const result = await request(app)
+        .post('/roles/conditions')
+        .send(conditionDecision);
+
+      expect(result.statusCode).toBe(400);
+      expect(result.body.error.message).toContain(
+        'REST API requires permissionMapping entries to include permission name',
+      );
+    });
+
+    it('should accept named permissionMapping via REST', async () => {
+      conditionalStorageMock.createCondition = jest
+        .fn()
+        .mockImplementation(async () => 1);
+
+      const conditionDecision: RoleConditionalPolicyDecision = {
+        id: 1,
+        pluginId: 'catalog',
+        roleEntityRef: 'role:default/test',
+        resourceType: 'catalog-entity',
+        permissionMapping: [{ name: 'catalog.entity.read', action: 'read' }],
+        result: AuthorizeResult.CONDITIONAL,
+        conditions: {
+          rule: 'IS_ENTITY_OWNER',
+          resourceType: 'catalog-entity',
+          params: { claims: ['group:default/team-a'] },
+        },
+      };
+      const result = await request(app)
+        .post('/roles/conditions')
+        .send(conditionDecision);
+
+      expect(result.statusCode).toBe(201);
+      expect(result.body).toEqual({ id: 1 });
+    });
+  });
+
   describe('PUT /roles/conditions', () => {
     it('should return return 403 for condition that the user is not an owner of', async () => {
-      const conditionDecision: RoleConditionalPolicyDecision<PermissionAction> =
-        {
-          id: 1,
-          pluginId: 'catalog',
-          roleEntityRef: 'role:default/test',
+      const conditionDecision: RoleConditionalPolicyDecision = {
+        id: 1,
+        pluginId: 'catalog',
+        roleEntityRef: 'role:default/test',
+        resourceType: 'catalog-entity',
+        permissionMapping: ['read'],
+        result: AuthorizeResult.CONDITIONAL,
+        conditions: {
+          rule: 'IS_ENTITY_OWNER',
           resourceType: 'catalog-entity',
-          permissionMapping: ['read'],
-          result: AuthorizeResult.CONDITIONAL,
-          conditions: {
-            rule: 'IS_ENTITY_OWNER',
-            resourceType: 'catalog-entity',
-            params: { claims: ['group:default/team-a'] },
-          },
-        };
+          params: { claims: ['group:default/team-a'] },
+        },
+      };
       const result = await request(app)
         .put('/roles/conditions/2')
         .send(conditionDecision);
@@ -927,21 +979,44 @@ describe('REST policies api with conditions', () => {
       });
     });
 
-    it('should update condition decision that the user is an owner of', async () => {
-      const conditionDecision: RoleConditionalPolicyDecision<PermissionAction> =
-        {
-          id: 1,
-          pluginId: 'catalog',
-          roleEntityRef: 'role:default/test',
+    it('should reject action-only permissionMapping on update via REST', async () => {
+      const conditionDecision: RoleConditionalPolicyDecision = {
+        id: 1,
+        pluginId: 'catalog',
+        roleEntityRef: 'role:default/test',
+        resourceType: 'catalog-entity',
+        permissionMapping: ['read'],
+        result: AuthorizeResult.CONDITIONAL,
+        conditions: {
+          rule: 'IS_ENTITY_OWNER',
           resourceType: 'catalog-entity',
-          permissionMapping: ['read'],
-          result: AuthorizeResult.CONDITIONAL,
-          conditions: {
-            rule: 'IS_ENTITY_OWNER',
-            resourceType: 'catalog-entity',
-            params: { claims: ['group:default/team-a'] },
-          },
-        };
+          params: { claims: ['group:default/team-a'] },
+        },
+      };
+      const result = await request(app)
+        .put('/roles/conditions/1')
+        .send(conditionDecision);
+
+      expect(result.statusCode).toBe(400);
+      expect(result.body.error.message).toContain(
+        'REST API requires permissionMapping entries to include permission name',
+      );
+    });
+
+    it('should update condition decision that the user is an owner of', async () => {
+      const conditionDecision: RoleConditionalPolicyDecision = {
+        id: 1,
+        pluginId: 'catalog',
+        roleEntityRef: 'role:default/test',
+        resourceType: 'catalog-entity',
+        permissionMapping: [{ name: 'catalog.entity.read', action: 'read' }],
+        result: AuthorizeResult.CONDITIONAL,
+        conditions: {
+          rule: 'IS_ENTITY_OWNER',
+          resourceType: 'catalog-entity',
+          params: { claims: ['group:default/team-a'] },
+        },
+      };
       const result = await request(app)
         .put('/roles/conditions/1')
         .send(conditionDecision);
@@ -954,12 +1029,7 @@ describe('REST policies api with conditions', () => {
         pluginId: 'catalog',
         roleEntityRef: 'role:default/test',
         resourceType: 'catalog-entity',
-        permissionMapping: [
-          {
-            action: 'read',
-            name: 'catalog.entity.read',
-          },
-        ],
+        permissionMapping: [{ name: 'catalog.entity.read', action: 'read' }],
         result: AuthorizeResult.CONDITIONAL,
         conditions: {
           rule: 'IS_ENTITY_OWNER',

@@ -1,5 +1,65 @@
 # @backstage-community/plugin-mcp-chat
 
+## 0.10.1
+
+### Patch Changes
+
+- 778af1d: Backstage version bump to v1.54.7
+
+## 0.10.0
+
+### Minor Changes
+
+- c1dd2c9: Backstage version bump to v1.54.5
+
+## 0.9.0
+
+### Minor Changes
+
+- 83d814e: Backstage version bump to v1.53.0
+
+## 0.8.0
+
+### Minor Changes
+
+- cacdbba: Backstage version bump to v1.52.0
+
+### Patch Changes
+
+- 4e8bd66: Updated dependency `react-router` to `^6.30.4`.
+
+## 0.7.1
+
+### Patch Changes
+
+- c43e80c: Updated the list of supported providers in the README
+
+## 0.7.0
+
+### Minor Changes
+
+- 81aead2: Backstage version bump to v1.50.2
+
+## 0.6.0
+
+### Minor Changes
+
+- 3e01b82: Backstage version bump to v1.49.2
+
+  Updated `uuid` and `@types/uuid` to ^11.0.0, `@backstage/plugin-catalog-node` to ^2.1.0, and deduplicated yarn.lock
+
+## 0.5.0
+
+### Minor Changes
+
+- 805e6fd: Add support for new frontend system
+
+## 0.4.0
+
+### Minor Changes
+
+- 158dbf4: Backstage version bump to v1.48.5
+
 ## 0.3.1
 
 ### Patch Changes

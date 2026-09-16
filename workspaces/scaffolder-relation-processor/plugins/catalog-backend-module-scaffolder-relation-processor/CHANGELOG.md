@@ -1,5 +1,61 @@
 # @backstage-community/plugin-catalog-backend-module-scaffolder-relation-processor
 
+## 2.17.1
+
+### Patch Changes
+
+- cb68dc9: Uses the Backstage 1.54.5 versions of the events and notifications packages instead of older pinned dependencies.
+
+## 2.17.0
+
+### Minor Changes
+
+- caaaca2: Backstage version bump to v1.54.5
+
+## 2.16.0
+
+### Minor Changes
+
+- 1534c83: Backstage version bump to v1.53.0
+
+### Patch Changes
+
+- 01d115d: Add module wiring and utility unit tests, a local dev harness, and contributor documentation so Backstage dependency bumps are caught by scoped automated tests. Also document the pullRequests.templateUpdate config option in the config schema.
+
+## 2.15.0
+
+### Minor Changes
+
+- 87577ff: Backstage version bump to v1.52.0
+
+## 2.14.2
+
+### Patch Changes
+
+- 170f85d: Migrate to Jest 30
+
+## 2.14.1
+
+### Patch Changes
+
+- 10451e9: Bump pinned dependencies to resolve to backstage 1.49.3 instead of backstage 1.45.3
+
+## 2.14.0
+
+### Minor Changes
+
+- 7d01570: Backstage version bump to v1.49.3
+
+## 2.13.0
+
+### Minor Changes
+
+- 495ad08: Backstage version bump to v1.48.4
+
+### Patch Changes
+
+- 9e7b674: Updated dependency `@gitbeaker/rest` to `^43.0.0`.
+
 ## 2.12.0
 
 ### Minor Changes

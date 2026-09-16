@@ -30,9 +30,22 @@ export const getProjectNameFromEntity = (entity: Entity): string => {
   return entity?.metadata.annotations?.[GITHUB_PROJECT_SLUG_ANNOTATION] ?? '';
 };
 
-export const getHostnameFromEntity = (entity: Entity): string => {
-  const { target } = getEntitySourceLocation(entity);
-  return new URL(target).hostname;
+export const getHostnameFromEntity = (entity: Entity): string | undefined => {
+  try {
+    const { target } = getEntitySourceLocation(entity);
+    // The location type (`url`, `github`, `gitlab`, ...) is not a reliable
+    // signal here: a non-`url` type can still carry a parseable URL target.
+    // Attempt to parse the host regardless of type and let the `catch` handle
+    // targets that are not URLs.
+    return new URL(target).hostname;
+  } catch {
+    // The entity has no usable URL source/managed-by location (e.g. it was
+    // registered from a non-URL location such as `file:`, or has no location
+    // annotation at all). The GitHub host is resolved from the configured
+    // integration instead, so fall back to `undefined` rather than throwing
+    // and crashing the card with "Failed to construct 'URL': Invalid URL".
+    return undefined;
+  }
 };
 
 export function useEntityGithubRepositories() {
@@ -42,46 +55,45 @@ export function useEntityGithubRepositories() {
   const [repositories, setRepositories] = useState<Repository[]>([]);
 
   const getRepositoriesNames = useCallback(async () => {
-    if (entity.kind === 'Component' || entity.kind === 'API') {
+    const repositoryEntities: Repository[] = [];
+    // For Group and User entities fetch owned components and retrieve all issues
+    if (entity.kind === 'Group' || entity.kind === 'User') {
+      const entitiesList = await catalogApi.getEntities({
+        filter: {
+          'relations.ownedBy': stringifyEntityRef(entity),
+        },
+      });
+
+      entitiesList.items.forEach((componentEntity: Entity) => {
+        const ownedEntityName = getProjectNameFromEntity(componentEntity);
+        const ownedEntityLocationHostname =
+          getHostnameFromEntity(componentEntity);
+        if (
+          ownedEntityName &&
+          !repositoryEntities.some(
+            (it: Repository) => it.name === ownedEntityName,
+          ) &&
+          ownedEntityName.length
+        ) {
+          repositoryEntities.push({
+            name: ownedEntityName,
+            locationHostname: ownedEntityLocationHostname,
+          });
+        }
+      });
+    }
+    // Fallback to all other entity kinds
+    else {
+      // Check if the current entity has a github project slug annotation
       const entityName = getProjectNameFromEntity(entity);
       const locationHostname = getHostnameFromEntity(entity);
       if (entityName) {
-        setRepositories([
-          {
-            name: entityName,
-            locationHostname,
-          },
-        ]);
+        repositoryEntities.push({
+          name: entityName,
+          locationHostname,
+        });
       }
-
-      return;
     }
-
-    const entitiesList = await catalogApi.getEntities({
-      filter: {
-        kind: ['Component', 'API'],
-        'relations.ownedBy': stringifyEntityRef(entity),
-      },
-    });
-
-    const repositoryEntities: Repository[] = entitiesList.items.reduce(
-      (acc: Repository[], componentEntity: Entity) => {
-        const entityName = getProjectNameFromEntity(componentEntity);
-        const entityLocationHostname = getHostnameFromEntity(componentEntity);
-        if (
-          entityName &&
-          !acc.some((it: Repository) => it.name === entityName) &&
-          entityName.length
-        ) {
-          acc.push({
-            name: entityName,
-            locationHostname: entityLocationHostname,
-          });
-        }
-        return acc;
-      },
-      [],
-    );
 
     setRepositories(repositoryEntities);
   }, [catalogApi, entity]);

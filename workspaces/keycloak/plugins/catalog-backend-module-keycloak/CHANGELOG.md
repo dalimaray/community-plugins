@@ -1,5 +1,79 @@
 # @backstage-community/plugin-catalog-backend-module-keycloak
 
+## 3.22.1
+
+### Patch Changes
+
+- 040750f: Add contributor guides, dev harnesses, and bump-trust test coverage for the Keycloak auth and catalog backend modules.
+
+  - Auth: `dev/` harness, module wiring and auth↔catalog sanitization contract tests
+  - Catalog: transformer extension-point, schedule contract, batch-failure metrics, and `ensureTokenValid` tests
+  - Workspace: README index and CONTRIBUTING guides with validation/smoke checklists
+
+## 3.22.0
+
+### Minor Changes
+
+- 70d7508: Backstage version bump to v1.53.0
+
+### Patch Changes
+
+- 936f69a: Updated dependency `@keycloak/keycloak-admin-client` to `26.7.0`.
+
+## 3.21.0
+
+### Minor Changes
+
+- b4fd326: Backstage version bump to v1.52.0
+
+## 3.20.0
+
+### Minor Changes
+
+- e1a38d3: Backstage version bump to v1.51.0
+
+## 3.19.4
+
+### Patch Changes
+
+- eb0dd58: Updated dependency `@keycloak/keycloak-admin-client` to `26.6.3`.
+
+## 3.19.3
+
+### Patch Changes
+
+- 203c5e6: Updated dependency `@keycloak/keycloak-admin-client` to `26.6.1`.
+- 5a7e85f: Updated dependency `open-cli` to `^9.0.0`.
+
+## 3.19.2
+
+### Patch Changes
+
+- 170f85d: Migrate to Jest 30
+
+## 3.19.1
+
+### Patch Changes
+
+- e8b7471: Fixes group fetching to default to the recursive subgroup strategy when the Keycloak server version cannot be determined from `serverInfo`. Previously, the version check could silently produce an unexpected result if `systemInfo.version` was absent; now the plugin defaults to `processGroupsRecursively` for all versions except those explicitly detected as 22 or lower, which continue to use the flat `traverseGroups` approach.
+
+## 3.19.0
+
+### Minor Changes
+
+- 4fc4345: Backstage version bump to v1.49.3
+
+## 3.18.0
+
+### Minor Changes
+
+- e8105de: Backstage version bump to v1.48.4
+
+### Patch Changes
+
+- 95eca61: Updated dependency `@types/lodash` to `4.17.24`.
+- f788dc3: Updated dependency `@keycloak/keycloak-admin-client` to `26.5.6`.
+
 ## 3.17.2
 
 ### Patch Changes

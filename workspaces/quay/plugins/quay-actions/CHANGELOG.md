@@ -1,5 +1,59 @@
 # @backstage-community/plugin-scaffolder-backend-module-quay
 
+## 2.22.1
+
+### Patch Changes
+
+- de33bfd: Backstage version bump to v1.54.7
+
+## 2.22.0
+
+### Minor Changes
+
+- 2f52648: Backstage version bump to v1.54.6
+
+## 2.21.1
+
+### Patch Changes
+
+- 9e957a4: Added contributor guides and a local scaffolder `dev/` harness. Strengthened automated tests for backend plugin mount, router validation, shared permission contracts, and `quay:create-repository` registration.
+
+## 2.21.0
+
+### Minor Changes
+
+- 03eff44: Backstage version bump to v1.52.0
+
+## 2.20.0
+
+### Minor Changes
+
+- d4e8668: Backstage version bump to v1.51.0
+
+## 2.19.0
+
+### Minor Changes
+
+- 07b8314: Backstage version bump to v1.50.4
+
+## 2.18.0
+
+### Minor Changes
+
+- cfd52e1: Backstage version bump to v1.49.2
+
+## 2.17.1
+
+### Patch Changes
+
+- 46068bd: Backstage version bump to v1.48.5
+
+## 2.17.0
+
+### Minor Changes
+
+- c9adc64: Backstage version bump to v1.48.4
+
 ## 2.16.0
 
 ### Minor Changes

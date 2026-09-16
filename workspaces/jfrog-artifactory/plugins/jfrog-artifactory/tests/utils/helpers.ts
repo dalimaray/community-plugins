@@ -24,12 +24,20 @@ export class Common {
   }
 
   async loginAsGuest() {
-    await this.page.goto('/');
     this.page.on('dialog', async dialog => {
       await dialog.accept();
     });
+    await this.page.goto('/');
+    await this.page.getByRole('button', { name: 'Language' }).waitFor();
+  }
 
-    await this.page.getByRole('button', { name: 'Enter' }).click();
+  async navigateToJfrogArtifactory() {
+    await this.page.goto(
+      '/catalog/default/component/backstage/jfrog-artifactory',
+    );
+    await this.page
+      .getByTestId('jfrog-artifactory-table')
+      .waitFor({ state: 'visible', timeout: 30000 });
   }
 
   async a11yCheck(testInfo: TestInfo) {
@@ -46,7 +54,8 @@ export class Common {
 
   async switchToLocale(locale: string): Promise<void> {
     if (locale !== 'en') {
-      const localeString = locale === 'ja' ? '日本語' : locale;
+      const names = new Intl.DisplayNames([locale], { type: 'language' });
+      const localeString = names.of(locale) || locale;
       await this.page.getByRole('button', { name: 'Language' }).click();
       await this.page.getByRole('menuitem', { name: localeString }).click();
     }

@@ -71,6 +71,70 @@ export interface Config {
        * @visibility frontend
        */
       policyDecisionPrecedence?: 'basic' | 'conditional';
+      /**
+       * When enabled, group-to-role bindings are also evaluated using ownership
+       * entity refs from the sign-in token, not only catalog memberOf relations.
+       * Defaults to false.
+       */
+      useOwnershipEntityRefs?: boolean;
+      /**
+       * Configuration for assigning a default role with permissions
+       * to all authenticated users.
+       */
+      defaultPermissions?: {
+        /**
+         * The default role to assign to all authenticated users.
+         */
+        defaultRole: string;
+        /**
+         * The list of baseline basic permissions assigned to the default role.
+         */
+        basicPermissions: Array<{
+          /**
+           * Permission name or resource type, for example `catalog.entity.read` or `catalog-entity`.
+           */
+          permission: string;
+          /**
+           * Action for the permission. Defaults to `use` when omitted.
+           */
+          action: 'create' | 'read' | 'update' | 'delete' | 'use';
+        }>;
+      };
+      /**
+       * Optional validation tuning for conditional policies.
+       */
+      validation?: {
+        /**
+         * Limits for conditional policy payload shape and nesting.
+         */
+        conditionalPolicies?: {
+          /**
+           * Maximum nesting depth for conditional criteria trees.
+           */
+          maxConditionDepth?: number;
+          /**
+           * Maximum total number of criteria nodes in a condition tree.
+           */
+          maxConditionNodeCount?: number;
+          /**
+           * Maximum number of items in `allOf`/`anyOf` criteria arrays.
+           */
+          maxCriteriaItems?: number;
+        };
+        /**
+         * Limits for YAML-based conditional policy file ingestion.
+         */
+        conditionalPoliciesFile?: {
+          /**
+           * Maximum size in bytes for the conditional policies YAML file.
+           */
+          maxBytes?: number;
+          /**
+           * Maximum number of YAML documents allowed in the conditional file.
+           */
+          maxDocuments?: number;
+        };
+      };
     };
   };
 }

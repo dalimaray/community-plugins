@@ -1,5 +1,48 @@
 # @backstage-community/plugin-tech-insights
 
+## 1.5.0
+
+### Minor Changes
+
+- efd82d4: Backstage version bump to v1.52.0
+- 9fcbc6c: Backstage version bump to v1.54.5
+
+### Patch Changes
+
+- 798f441: The techinsights page did not appear in the sidebar when hosted on NFS.
+- Updated dependencies [efd82d4]
+- Updated dependencies [9fcbc6c]
+  - @backstage-community/plugin-tech-insights-common@0.11.0
+  - @backstage-community/plugin-tech-insights-react@1.7.0
+
+## 1.4.0
+
+### Minor Changes
+
+- b8b1d30: Backstage version bump to v1.51.0
+
+### Patch Changes
+
+- Updated dependencies [b8b1d30]
+  - @backstage-community/plugin-tech-insights-common@0.10.0
+  - @backstage-community/plugin-tech-insights-react@1.6.0
+
+## 1.3.0
+
+### Minor Changes
+
+- 756e05a: - Backstage version bump to v1.50.2.
+  - `techInsightsNavItem` has been removed as it's no longer needed.
+  - `EntityPredicate` has been replaced with `FilterPredicate` from `@backstage/filter-predicates`.
+
+### Patch Changes
+
+- 60cfba4: Update correct param name in README.
+- 51846ac: Documented how to disable and configure the Tech Insights entity tab and overview card via `app-config.yaml`, and clarified that registering any `TechInsightsScorecardBlueprint` extension replaces the built-in fallback scorecard on the Tech Insights tab.
+- Updated dependencies [756e05a]
+  - @backstage-community/plugin-tech-insights-common@0.9.0
+  - @backstage-community/plugin-tech-insights-react@1.5.0
+
 ## 1.2.0
 
 ### Minor Changes

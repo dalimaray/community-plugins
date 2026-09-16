@@ -1,5 +1,304 @@
 # @backstage-community/plugin-rbac
 
+## 2.3.1
+
+### Patch Changes
+
+- 2501a41: Backstage version bump to v1.54.7
+- Updated dependencies [2501a41]
+  - @backstage-community/plugin-rbac-common@2.1.1
+
+## 2.3.0
+
+### Minor Changes
+
+- 23625ae: Backstage version bump to v1.54.5
+
+### Patch Changes
+
+- Updated dependencies [23625ae]
+  - @backstage-community/plugin-rbac-common@2.1.0
+
+## 2.2.2
+
+### Patch Changes
+
+- fdc90b0: Updated dependency `@testing-library/user-event` to `14.6.7`.
+
+## 2.2.1
+
+### Patch Changes
+
+- c97be0d: Updated dependency `@types/supertest` to `7.2.1`.
+  Updated dependency `@playwright/test` to `1.62.1`.
+  Updated dependency `@testing-library/user-event` to `14.6.6`.
+  Updated dependency `@types/autosuggest-highlight` to `3.2.4`.
+
+## 2.2.0
+
+### Minor Changes
+
+- 05a0161: ### Conditional policies: eliminate HTTP metadata dependency and support broad matching
+
+  **Fixed:**
+
+  - **`.find()` arbitrary name selection:** `processConditionMapping()` used `.find()` to resolve `(resourceType, action)` to a permission name, picking the first match arbitrarily when a plugin registers multiple permissions with the same pair (named variants). The function has been removed entirely — users now control the format directly.
+  - **`checkConflictedConditions` for named variants:** Updated conflict detection to allow separate conditional policies for different permission names with the same action and resourceType. For example, `playlist.list.update` and `playlist.followers.update` can now have independent conditions for the same role.
+  - **Frontend sends `{name, action}`:** The frontend now sends the permission name the user selected in the UI instead of discarding it and sending only the action string.
+  - **Startup race condition (#9429):** Eliminated HTTP calls to plugin metadata endpoints during conditional policy reconciliation. The YAML file watcher no longer calls `processConditionMapping()` — conditions are stored directly without server-side name resolution. This removes the dependency on target plugins being ready at startup.
+
+  **Added:**
+
+  - **`permissionMapping` accepts two formats:**
+
+    - Action-only `['read']` — broad match, applies to all permissions with this action for the resourceType. Available in YAML conditional policies file and provider extension point (read-only in frontend UI).
+    - Named `[{name: 'catalog.entity.read', action: 'read'}]` — specific match, targets exactly the named permission. Available in all entry points including REST API and frontend UI.
+
+  - **New types** exported from `@backstage-community/plugin-rbac-common`:
+
+    - `PermissionMapping` — union type `PermissionAction | PermissionInfo`
+    - `isPermissionInfo()` — type guard
+    - `permissionMappingAction()` — extracts action from either format
+
+  - **REST API validation:** POST/PUT endpoints require `{name, action}` format for `permissionMapping` entries. Plain action strings are rejected with `InputError`. This ensures conditions created via REST API (editable in frontend UI) always have explicit permission names. Broad (action-only) format is supported in YAML and provider extension point where conditions are read-only in the UI.
+  - **Validation:** `{name, action}` entries are validated — empty permission names are rejected.
+
+  **Changed:**
+
+  - YAML conditional policies with action-only `permissionMapping` (e.g., `['read']`) are now stored as-is and match ALL permissions with that action for the given resourceType. Previously, the backend resolved the action to a single arbitrary permission name via HTTP. This affects only plugins with named variants — multiple permissions sharing the same `(resourceType, action)` pair (scaffolder, playlist). For most plugins where each action maps to one permission, behavior is unchanged. To target a specific permission, use the `{name, action}` format.
+  - Frontend and backend must be upgraded together — older frontend versions sending `['read']` to REST API will receive `InputError`.
+
+  **No DB migration required.** Existing `{name, action}` data in the database is already valid in the new `PermissionMapping` union type and continues to work unchanged.
+
+### Patch Changes
+
+- d68f5f9: Updated dependency `start-server-and-test` to `3.0.12`.
+- Updated dependencies [05a0161]
+  - @backstage-community/plugin-rbac-common@2.0.0
+
+## 2.1.2
+
+### Patch Changes
+
+- 2bcaa01: Improve role page performance by replacing bulk member loading with server-side search and fetching only the members assigned to a role.
+
+## 2.1.1
+
+### Patch Changes
+
+- a231ec3: Add CI bump-trust coverage and contributor dev harness documentation for the RBAC plugin family.
+
+  **`@backstage-community/plugin-rbac-backend`**
+
+  - Add backend `dev/` harness config (`app-config.yaml`) that no longer depends on the workspace root `app-config.yaml`
+  - Add `startTestBackend` smoke test for `GET /api/permission/roles`
+  - Add policy contract test locking the documented `superUsers` direct-membership rule
+  - Add backend-only multi-user manual test fixtures/config under `plugins/rbac-backend/__fixtures__/` and `app-config.multi-user.yaml` (Keycloak realm import, catalog entities, CSV policies)
+  - Add `CONTRIBUTING.md` with harness, test, and REST smoke guidance
+
+  **`@backstage-community/plugin-rbac-common`**
+
+  - Add minimal public API contract tests
+  - Add `CONTRIBUTING.md`
+
+  **`@backstage-community/plugin-rbac`**
+
+  - Add `CONTRIBUTING.md` and link it from the plugin README
+
+  **Workspace**
+
+  - Remove non-functional root `yarn start` and `yarn start:alpha` scripts that paired separate plugin dev servers
+
+- Updated dependencies [a231ec3]
+  - @backstage-community/plugin-rbac-common@1.29.1
+
+## 2.1.0
+
+### Minor Changes
+
+- 087a229: Add NFS translations module default export for `packages: all` discovery
+
+## 2.0.0
+
+### Major Changes
+
+- 0150d87: **BREAKING**: The New Frontend System (NFS) plugin has been promoted from the `./alpha` subpath to the primary `.` entry point. The legacy plugin has been moved to the new `./legacy` subpath. The `./alpha` subpath now only exports translations.
+
+  Migration steps:
+
+  - If you were importing from `@backstage-community/plugin-rbac/alpha` to use the NFS plugin, update your imports to `@backstage-community/plugin-rbac`.
+  - If you were importing from `@backstage-community/plugin-rbac` (the legacy plugin), update your imports to `@backstage-community/plugin-rbac/legacy`.
+  - If you were importing translations from `@backstage-community/plugin-rbac/alpha`, those continue to work from the same path.
+
+### Patch Changes
+
+- 09d8279: Fixed cancel button position on the role form page by removing absolute positioning and placing it in the document flow after the error alert
+
+## 1.55.3
+
+### Patch Changes
+
+- b1d36eb: Fixed nested interactive controls accessibility violations (WCAG 4.1.2) in RBAC tables
+
+## 1.55.2
+
+### Patch Changes
+
+- 2b0b5be: Update German translation for accessible plugins header.
+- 6622075: Updated dependency `@playwright/test` to `1.61.1`.
+- 72557ed: Updated dependency `@types/node` to `22.20.1`.
+
+## 1.55.1
+
+### Patch Changes
+
+- dc80f66: Updated dependency `start-server-and-test` to `3.0.11`.
+
+## 1.55.0
+
+### Minor Changes
+
+- 845383a: Backstage version bump to v1.52.0
+
+### Patch Changes
+
+- Updated dependencies [845383a]
+  - @backstage-community/plugin-rbac-common@1.29.0
+
+## 1.54.0
+
+### Minor Changes
+
+- 091ec86: Backstage version bump to v1.51.0.
+
+  The RBAC backend plugin now resolves user identity through Backstage's `UserInfoService` when evaluating conditional permissions, as part of aligning with the Backstage 1.51 permission framework. **No action is required** if you install RBAC with `backend.add(import('@backstage-community/plugin-rbac-backend'))` and manage access through app-config as documented.
+
+  If you extend RBAC at a lower level (for example by constructing `PolicyBuilder` directly), ensure `UserInfoService` is wired through your backend integration.
+
+### Patch Changes
+
+- 387d2e9: Updated dependency `@types/node` to `22.19.19`.
+- 6d964f2: Migrated MUI-v4 references to MUI-v5
+
+  Adds New Frontend System dev entrypoints and removes workspace example apps in favor of the plugin `dev/` pattern. Dev backend wiring lives in `plugins/rbac-backend/dev/` (same approach as linguist, feedback, and other FE+BE plugins).
+
+- Updated dependencies [091ec86]
+  - @backstage-community/plugin-rbac-common@1.28.0
+
+## 1.53.1
+
+### Patch Changes
+
+- 91cce2e: Fixed RBAC table pagination text not being translated in non-English locales by adding `labelDisplayedRows` and `labelRowsPerPage` translation keys and wiring them into all table components.
+
+## 1.53.0
+
+### Minor Changes
+
+- 6a916a1: Backstage version bump to v1.50.4
+
+### Patch Changes
+
+- Updated dependencies [6a916a1]
+  - @backstage-community/plugin-rbac-common@1.27.0
+
+## 1.52.5
+
+### Patch Changes
+
+a23cb21: Improve role page performance by replacing bulk member loading with server-side search and fetching only the members assigned to a role.
+
+## 1.52.4
+
+### Patch Changes
+
+- a63b0b6: Updated dependency `start-server-and-test` to `3.0.2`.
+- 170f85d: Migrate to Jest 30 and fix backend test assertion compatibility
+- Updated dependencies [170f85d]
+  - @backstage-community/plugin-rbac-common@1.26.1
+
+## 1.52.3
+
+### Patch Changes
+
+- c1b8a19: Expanded checkbox click targets in the permission policies form to include the associated label text. Clicking the permission name or policy action text now toggles the corresponding checkbox.
+
+## 1.52.2
+
+### Patch Changes
+
+- 3fc1a9e: Fix RBAC role creation form UI text consistency and accuracy
+
+## 1.52.1
+
+### Patch Changes
+
+- a559dfb: Updated dependency `@types/node` to `22.19.17`.
+
+## 1.52.0
+
+### Minor Changes
+
+- 8993474: Backstage version bump to v1.49.2
+
+### Patch Changes
+
+- Updated dependencies [8993474]
+  - @backstage-community/plugin-rbac-common@1.26.0
+
+## 1.51.0
+
+### Minor Changes
+
+- 50e194d: Add support for a default role and permissions for authenticated users in RBAC backend
+
+  - Introduced a new `defaultRole` and `basicPermissions` configuration options to assign a default role to all authenticated users.
+
+    ```diff
+    permission:
+      rbac:
+    +   defaultPermissions:
+    +     defaultRole: role:default/my-default-role
+    +     basicPermissions:
+    +       - permission: catalog.entity.read
+    +         action: read
+    ```
+
+  - Updated the RBAC permission policy to include the default role in user roles if not already present.
+
+### Patch Changes
+
+- Updated dependencies [50e194d]
+  - @backstage-community/plugin-rbac-common@1.25.0
+
+## 1.50.2
+
+### Patch Changes
+
+- d737494: Backstage version bump to v1.48.5
+- Updated dependencies [d737494]
+  - @backstage-community/plugin-rbac-common@1.24.1
+
+## 1.50.1
+
+### Patch Changes
+
+- 0467b33: Updated dependency `@testing-library/react` to `^16.0.0`.
+  Updated dependency `@testing-library/dom` to `10.4.1`.
+  Updated dependency `@testing-library/jest-dom` to `^6.0.0`.
+
+## 1.50.0
+
+### Minor Changes
+
+- 843bbe2: Backstage version bump to v1.48.4
+
+### Patch Changes
+
+- d22bce2: Updated dependency `start-server-and-test` to `2.1.5`.
+- Updated dependencies [843bbe2]
+  - @backstage-community/plugin-rbac-common@1.24.0
+
 ## 1.49.0
 
 ### Minor Changes

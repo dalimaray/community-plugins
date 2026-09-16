@@ -13,9 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import { AuditorService, AuthService } from '@backstage/backend-plugin-api';
-import type { MetadataResponse } from '@backstage/plugin-permission-common';
-
+import { AuditorService, LoggerService } from '@backstage/backend-plugin-api';
 import {
   difference,
   fromPairs,
@@ -30,16 +28,14 @@ import {
 
 import {
   PermissionAction,
-  PermissionInfo,
   RoleBasedPolicy,
   RoleConditionalPolicyDecision,
   Source,
 } from '@backstage-community/plugin-rbac-common';
 
-import { ActionType, RoleEvents } from './auditor/auditor';
+import { ActionType, ConditionEvents, RoleEvents } from './auditor/auditor';
 import { RoleMetadataDao, RoleMetadataStorage } from './database/role-metadata';
 import { EnforcerDelegate } from './service/enforcer-delegate';
-import { PluginPermissionMetadataCollector } from './service/plugin-endpoints';
 import { RoleMetadata } from '@backstage-community/plugin-rbac-common';
 import { RBACFilters } from './permissions';
 
@@ -74,6 +70,235 @@ export function typedPoliciesToString(
 
 export function metadataStringToPolicy(policy: string): string[] {
   return policy.replace('[', '').replace(']', '').split(', ');
+}
+
+/**
+ * Compares two policy arrays (e.g. [entityRef, permission, policy, effect]) for equality.
+ */
+function policyArraysEqual(a: string[], b: string[]): boolean {
+  return a.length === b.length && a.every((v, i) => v === b[i]);
+}
+
+export type ConditionalPolicyDiff<TAdd> = {
+  toAdd: TAdd[];
+  toRemove: RoleConditionalPolicyDecision[];
+};
+
+export type ConditionalResourceKey = {
+  roleEntityRef: string;
+  pluginId: string;
+  resourceType: string;
+};
+
+export type ConditionalPolicyReplacement<
+  TAdd extends ConditionalResourceKey,
+  TRemove extends ConditionalResourceKey & { id?: number },
+> = {
+  stored: TRemove;
+  desired: TAdd;
+};
+
+export type ConditionalPolicyReconcilePlan<
+  TAdd extends ConditionalResourceKey,
+  TRemove extends ConditionalResourceKey & { id?: number },
+> = {
+  updates: ConditionalPolicyReplacement<TAdd, TRemove>[];
+  creates: TAdd[];
+  deletes: TRemove[];
+};
+
+export type ConditionalPolicyReconcileAbortContext = {
+  logger: LoggerService;
+  auditor: AuditorService;
+  source: string;
+  abortEventId?: string;
+  pendingAdds: number;
+  pendingRemoves: number;
+  pluginIds: string[];
+  error: Error;
+};
+
+function serializeErrorForLog(error: Error): {
+  name: string;
+  message: string;
+  stack?: string;
+} {
+  return {
+    name: error.name,
+    message: error.message,
+    stack: error.stack,
+  };
+}
+
+export function toError(value: unknown): Error {
+  return value instanceof Error ? value : new Error(String(value));
+}
+
+/**
+ * Computes additions and removals between stored and desired conditional policies.
+ */
+export function diffConditionalPolicies<TAdd>(
+  stored: RoleConditionalPolicyDecision[],
+  desired: TAdd[],
+  equals: (
+    storedItem: RoleConditionalPolicyDecision,
+    desiredItem: TAdd,
+  ) => boolean,
+): ConditionalPolicyDiff<TAdd> {
+  const toAdd = desired.filter(
+    desiredItem => !stored.some(storedItem => equals(storedItem, desiredItem)),
+  );
+  const toRemove = stored.filter(
+    storedItem => !desired.some(desiredItem => equals(storedItem, desiredItem)),
+  );
+  return { toAdd, toRemove };
+}
+
+export function sameConditionalResource(
+  a: ConditionalResourceKey,
+  b: ConditionalResourceKey,
+): boolean {
+  return (
+    a.roleEntityRef === b.roleEntityRef &&
+    a.pluginId === b.pluginId &&
+    a.resourceType === b.resourceType
+  );
+}
+
+export function conditionalActionsOverlap(
+  actionsA: PermissionAction[],
+  actionsB: PermissionAction[],
+): boolean {
+  return actionsA.some(action => actionsB.includes(action));
+}
+
+/**
+ * Splits a conditional diff into in-place updates, net-new creates, and pure
+ * deletes. Overlapping add/remove pairs for the same role/plugin/resourceType
+ * are treated as updates so createCondition is not called while the stored row
+ * still exists.
+ */
+export function planConditionalReconcile<
+  TAdd extends ConditionalResourceKey,
+  TRemove extends ConditionalResourceKey & { id?: number },
+>(
+  toAdd: TAdd[],
+  toRemove: TRemove[],
+  getActions: (item: TAdd | TRemove) => PermissionAction[],
+): ConditionalPolicyReconcilePlan<TAdd, TRemove> {
+  const matchedRemoveIds = new Set<number>();
+  const updates: ConditionalPolicyReplacement<TAdd, TRemove>[] = [];
+  const creates: TAdd[] = [];
+
+  for (const desired of toAdd) {
+    const stored = toRemove.find(
+      item =>
+        item.id !== undefined &&
+        !matchedRemoveIds.has(item.id) &&
+        sameConditionalResource(item, desired) &&
+        conditionalActionsOverlap(getActions(item), getActions(desired)),
+    );
+
+    if (stored?.id !== undefined) {
+      matchedRemoveIds.add(stored.id);
+      updates.push({ stored, desired });
+    } else {
+      creates.push(desired);
+    }
+  }
+
+  const deletes = toRemove.filter(
+    item => item.id === undefined || !matchedRemoveIds.has(item.id),
+  );
+
+  return { updates, creates, deletes };
+}
+
+export function pendingDeleteIdsFromPlan(plan: {
+  deletes: ReadonlyArray<{ id?: number }>;
+}): ReadonlySet<number> {
+  const ids = plan.deletes
+    .map(item => item.id)
+    .filter((id): id is number => id !== undefined);
+  return new Set(ids);
+}
+
+/**
+ * Logs and audits a failed conditional reconcile. Callers must finish staging
+ * and validation for all pending additions, then persist updates/creates before
+ * deletes. Invoke from a catch block when that persist phase throws so stored
+ * conditions are not deleted.
+ */
+export async function abortConditionalPolicyReconcile(
+  context: ConditionalPolicyReconcileAbortContext,
+): Promise<void> {
+  const {
+    logger,
+    auditor,
+    source,
+    abortEventId = ConditionEvents.CONDITIONAL_POLICIES_FILE_CHANGE,
+    pendingAdds,
+    pendingRemoves,
+    pluginIds,
+    error,
+  } = context;
+
+  const abortMeta = {
+    source,
+    pendingAdds,
+    pendingRemoves,
+    pluginIds,
+    ...(abortEventId === ConditionEvents.CONDITION_WRITE
+      ? { actionType: ActionType.RECONCILE_ABORT }
+      : {}),
+  };
+
+  logger.error(
+    'Conditional policy reconcile aborted; stored conditions preserved. Retry reconciliation once the underlying staging or persistence failure is resolved.',
+    {
+      event: 'conditional_reconcile_aborted',
+      ...abortMeta,
+      error: serializeErrorForLog(error),
+    },
+  );
+
+  const auditorEvent = await auditor.createEvent({
+    eventId: abortEventId,
+    severityLevel: 'medium',
+    meta: abortMeta,
+  });
+  await auditorEvent.fail({ error, meta: abortMeta });
+}
+
+/**
+ * Syncs permission policies for a role to match a desired set.
+ * - Adds policies that are in desired but not in the enforcer (addPolicies skips existing via hasPolicy).
+ * - Removes policies that are in the enforcer but not in desired.
+ *
+ * @param enforcerDelegate - Enforcer to read from and write to
+ * @param roleEntityRef - Role to sync (used to load current policies via getFilteredPolicy(0, roleEntityRef))
+ * @param desiredPolicies - Desired policies in casbin format string[][]
+ */
+export async function syncRolePolicies(
+  enforcerDelegate: EnforcerDelegate,
+  roleEntityRef: string,
+  desiredPolicies: string[][],
+): Promise<void> {
+  const current = await enforcerDelegate.getFilteredPolicy(0, roleEntityRef);
+
+  const toAdd = desiredPolicies.filter(
+    d => !current.some(c => policyArraysEqual(c, d)),
+  );
+  const toRemove = current.filter(
+    c => !desiredPolicies.some(d => policyArraysEqual(c, d)),
+  );
+
+  if (toAdd.length > 0) {
+    await enforcerDelegate.addPolicies(toAdd);
+  }
+  if (toRemove.length > 0) {
+    await enforcerDelegate.removePolicies(toRemove);
+  }
 }
 
 export async function removeTheDifference(
@@ -218,58 +443,6 @@ export function mergeRoleMetadata(
   return mergedMetaData;
 }
 
-export async function processConditionMapping(
-  roleConditionPolicy: RoleConditionalPolicyDecision<PermissionAction>,
-  pluginPermMetaData: PluginPermissionMetadataCollector,
-  auth: AuthService,
-): Promise<RoleConditionalPolicyDecision<PermissionInfo>> {
-  const { token } = await auth.getPluginRequestToken({
-    onBehalfOf: await auth.getOwnServiceCredentials(),
-    targetPluginId: roleConditionPolicy.pluginId,
-  });
-
-  const rule: MetadataResponse | undefined =
-    await pluginPermMetaData.getMetadataByPluginId(
-      roleConditionPolicy.pluginId,
-      token,
-    );
-  if (!rule?.permissions) {
-    throw new Error(
-      `Unable to get permission list for plugin ${roleConditionPolicy.pluginId}`,
-    );
-  }
-
-  const permInfo: PermissionInfo[] = [];
-  for (const action of roleConditionPolicy.permissionMapping) {
-    const perm = rule.permissions.find(permission => {
-      if (permission.type === 'resource') {
-        const isCorrectResourceType =
-          permission.resourceType === roleConditionPolicy.resourceType;
-        const isCorrectAction = action === permission.attributes.action;
-        const undefinedAction =
-          action === 'use' && permission.attributes.action === undefined;
-
-        return isCorrectResourceType && (isCorrectAction || undefinedAction);
-      }
-      return false;
-    });
-
-    if (!perm) {
-      throw new Error(
-        `Unable to find permission to get permission name for resource type '${
-          roleConditionPolicy.resourceType
-        }' and action ${JSON.stringify(action)}`,
-      );
-    }
-    permInfo.push({ name: perm.name, action });
-  }
-
-  return {
-    ...roleConditionPolicy,
-    permissionMapping: permInfo,
-  };
-}
-
 export function deepSort(value: any): any {
   if (isArray(value)) {
     return sortBy(value.map(deepSort));
@@ -312,5 +485,18 @@ export const matches = (
     return !matches(role, filters.not);
   }
 
-  return filters.values.includes(role.owner);
+  // Keep filter semantics aligned with the IS_OWNER permission rule.
+  if (role.isDefault) {
+    return true;
+  }
+
+  if (!role.owner) {
+    return false;
+  }
+
+  if (filters.key === 'owners' || filters.key === 'owner') {
+    return filters.values.includes(role.owner);
+  }
+
+  return false;
 };

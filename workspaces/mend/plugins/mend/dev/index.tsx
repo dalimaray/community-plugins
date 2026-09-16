@@ -23,7 +23,13 @@ import {
   EntityLayout,
 } from '@backstage/plugin-catalog';
 import Grid from '@mui/material/Unstable_Grid2';
-import { MendSidebar, MendPage, plugin, MendTab } from '../src';
+import {
+  MendSidebar,
+  MendPage,
+  plugin,
+  MendTab,
+  isMendProjectAvailable,
+} from '../src';
 
 import HomeIcon from '@mui/icons-material/Home';
 
@@ -32,14 +38,18 @@ const SampleEntityPage = () => (
     <EntityLayout.Route path="/" title="Overview">
       <Grid container spacing={3} alignItems="stretch">
         <Grid md={12}>
-          <EntityAboutCard variant="gridItem" />
+          <EntityAboutCard />
         </Grid>
         <Grid xs={12}>
-          <EntityHasSubcomponentsCard variant="gridItem" />
+          <EntityHasSubcomponentsCard />
         </Grid>
       </Grid>
     </EntityLayout.Route>
-    <EntityLayout.Route path="/mend" title="Mend.io">
+    <EntityLayout.Route
+      if={isMendProjectAvailable}
+      path="/mend"
+      title="Mend.io"
+    >
       <MendTab />
     </EntityLayout.Route>
   </EntityLayout>

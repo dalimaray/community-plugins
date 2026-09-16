@@ -25,8 +25,6 @@ import express from 'express';
 import request from 'supertest';
 
 import {
-  PermissionAction,
-  PermissionInfo,
   policyEntityCreatePermission,
   policyEntityDeletePermission,
   policyEntityReadPermission,
@@ -63,6 +61,7 @@ import {
   extendablePluginIdProviderMock,
 } from '../../__fixtures__/mock-utils';
 import { ExtendablePluginIdProvider } from './extendable-id-provider';
+import { DEFAULT_CONDITION_VALIDATION_LIMITS } from '../validation/condition-validation';
 
 jest.setTimeout(60000);
 
@@ -72,24 +71,26 @@ jest.mock('@backstage/plugin-auth-node', () => ({
 
 const validateRoleConditionMock = jest.fn().mockImplementation();
 jest.mock('../validation/condition-validation', () => {
+  const actual = jest.requireActual(
+    '../validation/condition-validation',
+  ) as typeof import('../validation/condition-validation');
   return {
+    ...actual,
     validateRoleCondition: jest
       .fn()
-      .mockImplementation(
-        (condition: RoleConditionalPolicyDecision<PermissionAction>) => {
-          validateRoleConditionMock(condition);
-        },
-      ),
+      .mockImplementation((condition: RoleConditionalPolicyDecision) => {
+        validateRoleConditionMock(condition);
+      }),
   };
 });
 
-const conditions: RoleConditionalPolicyDecision<PermissionInfo>[] = [
+const conditions: RoleConditionalPolicyDecision[] = [
   {
     id: 1,
     pluginId: 'catalog',
     roleEntityRef: 'role:default/test',
     resourceType: 'catalog-entity',
-    permissionMapping: [{ name: 'catalog.entity.read', action: 'read' }],
+    permissionMapping: ['read'],
     result: AuthorizeResult.CONDITIONAL,
     conditions: {
       rule: 'IS_ENTITY_OWNER',
@@ -99,7 +100,7 @@ const conditions: RoleConditionalPolicyDecision<PermissionInfo>[] = [
   },
 ];
 
-const expectedConditions: RoleConditionalPolicyDecision<PermissionAction>[] = [
+const expectedConditions: RoleConditionalPolicyDecision[] = [
   {
     id: 1,
     pluginId: 'catalog',
@@ -259,6 +260,8 @@ describe('REST policies API', () => {
       roleMetadataStorageMock,
       permissionDependentPluginStoreMock,
       extendablePluginIdProviderMock as ExtendablePluginIdProvider,
+      DEFAULT_CONDITION_VALIDATION_LIMITS,
+      undefined,
     );
     const router = await server.serve();
     app = express().use(router);
@@ -355,7 +358,17 @@ describe('REST policies API', () => {
       expect(result.statusCode).toBe(400);
       expect(result.body.error).toEqual({
         name: 'InputError',
-        message: `permission policy must be present`,
+        message: `permission policy must be provided as an array`,
+      });
+    });
+
+    it('should not be created permission policy - req body must be an array', async () => {
+      const result = await request(app).post('/policies').send({});
+
+      expect(result.statusCode).toBe(400);
+      expect(result.body.error).toEqual({
+        name: 'InputError',
+        message: `permission policy must be provided as an array`,
       });
     });
 
@@ -572,6 +585,78 @@ describe('REST policies API', () => {
         ]);
 
       expect(result.statusCode).toBe(500);
+    });
+
+    it('should fail to create policy for missing role', async () => {
+      roleMetadataStorageMock.findRoleMetadata = jest
+        .fn()
+        .mockImplementation(
+          async (
+            roleEntityRef: string,
+          ): Promise<RoleMetadataDao | undefined> => {
+            if (roleEntityRef === 'role:default/missing-role') {
+              return undefined;
+            }
+            return {
+              source: 'rest',
+              roleEntityRef,
+              modifiedBy,
+            };
+          },
+        );
+
+      const result = await request(app)
+        .post('/policies')
+        .send([
+          {
+            entityReference: 'role:default/missing-role',
+            permission: 'policy-entity',
+            policy: 'delete',
+            effect: 'deny',
+          },
+        ]);
+
+      expect(result.statusCode).toBe(404);
+      expect(result.body.error).toEqual({
+        name: 'NotFoundError',
+        message: `Corresponding role role:default/missing-role was not found`,
+      });
+    });
+
+    it('should fail to create policy for missing role outside default namespace', async () => {
+      roleMetadataStorageMock.findRoleMetadata = jest
+        .fn()
+        .mockImplementation(
+          async (
+            roleEntityRef: string,
+          ): Promise<RoleMetadataDao | undefined> => {
+            if (roleEntityRef === 'role:team/missing-role') {
+              return undefined;
+            }
+            return {
+              source: 'rest',
+              roleEntityRef,
+              modifiedBy,
+            };
+          },
+        );
+
+      const result = await request(app)
+        .post('/policies')
+        .send([
+          {
+            entityReference: 'role:team/missing-role',
+            permission: 'policy-entity',
+            policy: 'delete',
+            effect: 'deny',
+          },
+        ]);
+
+      expect(result.statusCode).toBe(404);
+      expect(result.body.error).toEqual({
+        name: 'NotFoundError',
+        message: `Corresponding role role:team/missing-role was not found`,
+      });
     });
 
     it('should fail to create permission policy - duplication in req body', async () => {
@@ -950,7 +1035,19 @@ describe('REST policies API', () => {
       expect(result.statusCode).toEqual(400);
       expect(result.body.error).toEqual({
         name: 'InputError',
-        message: `permission policy must be present`,
+        message: `permission policy must be provided as an array`,
+      });
+    });
+
+    it('should fail to delete, request body must be an array', async () => {
+      const result = await request(app)
+        .delete('/policies/user/default/permission_admin')
+        .send({});
+
+      expect(result.statusCode).toEqual(400);
+      expect(result.body.error).toEqual({
+        name: 'InputError',
+        message: `permission policy must be provided as an array`,
       });
     });
 
@@ -1225,6 +1322,94 @@ describe('REST policies API', () => {
       expect(result.body.error).toEqual({
         name: 'InputError',
         message: `'newPolicy' object must be present`,
+      });
+    });
+
+    it('should fail to update policy for missing role', async () => {
+      roleMetadataStorageMock.findRoleMetadata = jest
+        .fn()
+        .mockImplementation(
+          async (
+            roleEntityRef: string,
+          ): Promise<RoleMetadataDao | undefined> => {
+            if (roleEntityRef === 'role:default/missing-role') {
+              return undefined;
+            }
+            return {
+              source: 'rest',
+              roleEntityRef,
+              modifiedBy,
+            };
+          },
+        );
+
+      const result = await request(app)
+        .put('/policies/role/default/missing-role')
+        .send({
+          oldPolicy: [
+            {
+              permission: 'policy-entity',
+              policy: 'read',
+              effect: 'allow',
+            },
+          ],
+          newPolicy: [
+            {
+              permission: 'policy-entity',
+              policy: 'delete',
+              effect: 'allow',
+            },
+          ],
+        });
+
+      expect(result.statusCode).toEqual(404);
+      expect(result.body.error).toEqual({
+        name: 'NotFoundError',
+        message: `Corresponding role role:default/missing-role was not found`,
+      });
+    });
+
+    it('should fail to update policy for missing role outside default namespace', async () => {
+      roleMetadataStorageMock.findRoleMetadata = jest
+        .fn()
+        .mockImplementation(
+          async (
+            roleEntityRef: string,
+          ): Promise<RoleMetadataDao | undefined> => {
+            if (roleEntityRef === 'role:team/missing-role') {
+              return undefined;
+            }
+            return {
+              source: 'rest',
+              roleEntityRef,
+              modifiedBy,
+            };
+          },
+        );
+
+      const result = await request(app)
+        .put('/policies/role/team/missing-role')
+        .send({
+          oldPolicy: [
+            {
+              permission: 'policy-entity',
+              policy: 'read',
+              effect: 'allow',
+            },
+          ],
+          newPolicy: [
+            {
+              permission: 'policy-entity',
+              policy: 'delete',
+              effect: 'allow',
+            },
+          ],
+        });
+
+      expect(result.statusCode).toEqual(404);
+      expect(result.body.error).toEqual({
+        name: 'NotFoundError',
+        message: `Corresponding role role:team/missing-role was not found`,
       });
     });
 
@@ -1967,6 +2152,7 @@ describe('REST policies API', () => {
           memberReferences: ['group:default/test'],
           name: 'role:default/test',
           metadata: {
+            isDefault: false,
             source: 'rest',
             modifiedBy: 'user:default/some-user',
           },
@@ -1975,6 +2161,7 @@ describe('REST policies API', () => {
           memberReferences: ['group:default/team_a'],
           name: 'role:default/team_a',
           metadata: {
+            isDefault: false,
             source: 'rest',
             modifiedBy: 'user:default/some-user',
           },
@@ -2030,6 +2217,7 @@ describe('REST policies API', () => {
           memberReferences: ['user:default/permission_admin'],
           name: 'role:default/rbac_admin',
           metadata: {
+            isDefault: false,
             source: 'rest',
             modifiedBy: 'user:default/some-user',
           },
@@ -3221,6 +3409,7 @@ describe('REST policies API', () => {
             author: undefined,
             createdAt: undefined,
             description: undefined,
+            isDefault: false,
             lastModified: undefined,
             modifiedBy: 'user:default/some-user',
             owner: undefined,
@@ -3494,7 +3683,48 @@ describe('REST policies API', () => {
           return response;
         });
 
-      const roleCondition: RoleConditionalPolicyDecision<PermissionAction> = {
+      const roleCondition: RoleConditionalPolicyDecision = {
+        id: 1,
+        pluginId: 'catalog',
+        roleEntityRef: 'role:default/test',
+        resourceType: 'catalog-entity',
+        permissionMapping: [{ name: 'catalog.entity.read', action: 'read' }],
+        result: AuthorizeResult.CONDITIONAL,
+        conditions: {
+          rule: 'IS_ENTITY_OWNER',
+          resourceType: 'catalog-entity',
+          params: { claims: ['group:default/team-a'] },
+        },
+      };
+      const result = await request(app)
+        .post('/roles/conditions')
+        .send(roleCondition);
+
+      expect(result.statusCode).toBe(201);
+      expect(validateRoleConditionMock).toHaveBeenCalledWith(roleCondition);
+      expect(result.body).toEqual({ id: 1 });
+      expect(mockHttpAuth.credentials).toHaveBeenCalledTimes(1);
+    });
+
+    it('should return 400 when condition validation fails', async () => {
+      validateRoleConditionMock.mockImplementationOnce(() => {
+        throw new InputError(`Invalid condition payload`);
+      });
+
+      const result = await request(app).post('/roles/conditions').send({
+        pluginId: 'catalog',
+        roleEntityRef: 'role:default/test',
+      });
+
+      expect(result.statusCode).toBe(400);
+      expect(result.body.error).toEqual({
+        name: 'InputError',
+        message: 'Invalid condition payload',
+      });
+    });
+
+    it('should return 400 when permissionMapping contains action-only entries', async () => {
+      const roleCondition: RoleConditionalPolicyDecision = {
         id: 1,
         pluginId: 'catalog',
         roleEntityRef: 'role:default/test',
@@ -3511,10 +3741,13 @@ describe('REST policies API', () => {
         .post('/roles/conditions')
         .send(roleCondition);
 
-      expect(result.statusCode).toBe(201);
-      expect(validateRoleConditionMock).toHaveBeenCalledWith(roleCondition);
-      expect(result.body).toEqual({ id: 1 });
-      expect(mockHttpAuth.credentials).toHaveBeenCalledTimes(1);
+      expect(result.statusCode).toBe(400);
+      expect(result.body.error).toEqual({
+        name: 'InputError',
+        message: expect.stringContaining(
+          'REST API requires permissionMapping entries to include permission name',
+        ),
+      });
     });
 
     it('should create condition with the correct permission name for different resource types but similar actions', async () => {
@@ -3550,12 +3783,12 @@ describe('REST policies API', () => {
           return response;
         });
 
-      const roleCondition: RoleConditionalPolicyDecision<PermissionAction> = {
+      const roleCondition: RoleConditionalPolicyDecision = {
         id: 1,
         pluginId: 'catalog',
         roleEntityRef: 'role:default/test',
         resourceType: 'catalog-entity',
-        permissionMapping: ['read'],
+        permissionMapping: [{ name: 'catalog.entity.read', action: 'read' }],
         result: AuthorizeResult.CONDITIONAL,
         conditions: {
           rule: 'IS_ENTITY_OWNER',
@@ -3564,20 +3797,13 @@ describe('REST policies API', () => {
         },
       };
 
-      const roleConditionToBeSaved: Partial<
-        RoleConditionalPolicyDecision<PermissionInfo>
-      > &
-        Required<
-          Pick<
-            RoleConditionalPolicyDecision<PermissionInfo>,
-            'permissionMapping'
-          >
-        > = {
+      const roleConditionToBeSaved: Partial<RoleConditionalPolicyDecision> &
+        Required<Pick<RoleConditionalPolicyDecision, 'permissionMapping'>> = {
         id: 1,
         pluginId: 'catalog',
         roleEntityRef: 'role:default/test',
         resourceType: 'catalog-entity',
-        permissionMapping: [{ action: 'read', name: 'catalog.entity.read' }],
+        permissionMapping: [{ name: 'catalog.entity.read', action: 'read' }],
         result: AuthorizeResult.CONDITIONAL,
         conditions: {
           rule: 'IS_ENTITY_OWNER',
@@ -3630,12 +3856,12 @@ describe('REST policies API', () => {
           return response;
         });
 
-      const roleCondition: RoleConditionalPolicyDecision<PermissionAction> = {
+      const roleCondition: RoleConditionalPolicyDecision = {
         id: 1,
         pluginId: 'catalog',
         roleEntityRef: 'role:default/test',
         resourceType: 'catalog-location',
-        permissionMapping: ['use'],
+        permissionMapping: [{ name: 'catalog.location.use', action: 'use' }],
         result: AuthorizeResult.CONDITIONAL,
         conditions: {
           rule: 'IS_ENTITY_OWNER',
@@ -3644,20 +3870,13 @@ describe('REST policies API', () => {
         },
       };
 
-      const roleConditionToBeSaved: Partial<
-        RoleConditionalPolicyDecision<PermissionInfo>
-      > &
-        Required<
-          Pick<
-            RoleConditionalPolicyDecision<PermissionInfo>,
-            'permissionMapping'
-          >
-        > = {
+      const roleConditionToBeSaved: Partial<RoleConditionalPolicyDecision> &
+        Required<Pick<RoleConditionalPolicyDecision, 'permissionMapping'>> = {
         id: 1,
         pluginId: 'catalog',
         roleEntityRef: 'role:default/test',
         resourceType: 'catalog-location',
-        permissionMapping: [{ action: 'use', name: 'catalog.location.use' }],
+        permissionMapping: [{ name: 'catalog.location.use', action: 'use' }],
         result: AuthorizeResult.CONDITIONAL,
         conditions: {
           rule: 'IS_ENTITY_OWNER',
@@ -3722,20 +3941,19 @@ describe('REST policies API', () => {
       mockedAuthorizeConditional.mockImplementationOnce(async () => [
         { result: AuthorizeResult.ALLOW },
       ]);
-      const conditionDecision: RoleConditionalPolicyDecision<PermissionAction> =
-        {
-          id: 1,
-          pluginId: 'catalog',
-          roleEntityRef: 'role:default/test',
+      const conditionDecision: RoleConditionalPolicyDecision = {
+        id: 1,
+        pluginId: 'catalog',
+        roleEntityRef: 'role:default/test',
+        resourceType: 'catalog-entity',
+        permissionMapping: [{ name: 'catalog.entity.read', action: 'read' }],
+        result: AuthorizeResult.CONDITIONAL,
+        conditions: {
+          rule: 'IS_ENTITY_OWNER',
           resourceType: 'catalog-entity',
-          permissionMapping: ['read'],
-          result: AuthorizeResult.CONDITIONAL,
-          conditions: {
-            rule: 'IS_ENTITY_OWNER',
-            resourceType: 'catalog-entity',
-            params: { claims: ['group:default/team-a'] },
-          },
-        };
+          params: { claims: ['group:default/team-a'] },
+        },
+      };
       const result = await request(app)
         .put('/roles/conditions/1')
         .send(conditionDecision);
@@ -3758,12 +3976,7 @@ describe('REST policies API', () => {
         pluginId: 'catalog',
         roleEntityRef: 'role:default/test',
         resourceType: 'catalog-entity',
-        permissionMapping: [
-          {
-            action: 'read',
-            name: 'catalog.entity.read',
-          },
-        ],
+        permissionMapping: [{ name: 'catalog.entity.read', action: 'read' }],
         result: AuthorizeResult.CONDITIONAL,
         conditions: {
           rule: 'IS_ENTITY_OWNER',
@@ -3778,20 +3991,19 @@ describe('REST policies API', () => {
       mockedAuthorizeConditional.mockImplementationOnce(async () => [
         { result: AuthorizeResult.ALLOW },
       ]);
-      const conditionDecision: RoleConditionalPolicyDecision<PermissionAction> =
-        {
-          id: 1,
-          pluginId: 'catalog',
-          roleEntityRef: 'role:default/test',
+      const conditionDecision: RoleConditionalPolicyDecision = {
+        id: 1,
+        pluginId: 'catalog',
+        roleEntityRef: 'role:default/test',
+        resourceType: 'catalog-entity',
+        permissionMapping: ['read'],
+        result: AuthorizeResult.CONDITIONAL,
+        conditions: {
+          rule: 'IS_ENTITY_OWNER',
           resourceType: 'catalog-entity',
-          permissionMapping: ['read'],
-          result: AuthorizeResult.CONDITIONAL,
-          conditions: {
-            rule: 'IS_ENTITY_OWNER',
-            resourceType: 'catalog-entity',
-            params: { claims: ['group:default/team-a'] },
-          },
-        };
+          params: { claims: ['group:default/team-a'] },
+        },
+      };
       const result = await request(app)
         .put('/roles/conditions/2')
         .send(conditionDecision);
@@ -3800,6 +4012,53 @@ describe('REST policies API', () => {
       expect(result.body.error).toEqual({
         message: 'Condition with id 2 was not found',
         name: 'NotFoundError',
+      });
+    });
+
+    it('should return 400 on update when condition validation fails', async () => {
+      validateRoleConditionMock.mockImplementationOnce(() => {
+        throw new InputError(`Invalid condition payload`);
+      });
+
+      const result = await request(app).put('/roles/conditions/1').send({
+        pluginId: 'catalog',
+        roleEntityRef: 'role:default/test',
+      });
+
+      expect(result.statusCode).toBe(400);
+      expect(result.body.error).toEqual({
+        name: 'InputError',
+        message: 'Invalid condition payload',
+      });
+    });
+
+    it('should return 400 on update when permissionMapping contains action-only entries', async () => {
+      mockedAuthorizeConditional.mockImplementationOnce(async () => [
+        { result: AuthorizeResult.ALLOW },
+      ]);
+      const conditionDecision: RoleConditionalPolicyDecision = {
+        id: 1,
+        pluginId: 'catalog',
+        roleEntityRef: 'role:default/test',
+        resourceType: 'catalog-entity',
+        permissionMapping: ['read'],
+        result: AuthorizeResult.CONDITIONAL,
+        conditions: {
+          rule: 'IS_ENTITY_OWNER',
+          resourceType: 'catalog-entity',
+          params: { claims: ['group:default/team-a'] },
+        },
+      };
+      const result = await request(app)
+        .put('/roles/conditions/1')
+        .send(conditionDecision);
+
+      expect(result.statusCode).toBe(400);
+      expect(result.body.error).toEqual({
+        name: 'InputError',
+        message: expect.stringContaining(
+          'REST API requires permissionMapping entries to include permission name',
+        ),
       });
     });
   });
@@ -3830,6 +4089,7 @@ describe('REST policies API', () => {
         roleMetadataStorageMock,
         permissionDependentPluginStoreMock,
         extendablePluginIdProviderMock as ExtendablePluginIdProvider,
+        DEFAULT_CONDITION_VALIDATION_LIMITS,
         [providerMock],
       );
       const router = await server.serve();
@@ -4145,7 +4405,7 @@ describe('REST policies API', () => {
           return response;
         });
 
-      const roleCondition: RoleConditionalPolicyDecision<PermissionAction> = {
+      const roleCondition: RoleConditionalPolicyDecision = {
         id: 1,
         pluginId: 'catalog',
         roleEntityRef: 'role:default/test',
@@ -4171,20 +4431,19 @@ describe('REST policies API', () => {
       mockedAuthorizeConditional.mockImplementationOnce(async () => [
         { result: AuthorizeResult.ALLOW },
       ]);
-      const conditionDecision: RoleConditionalPolicyDecision<PermissionAction> =
-        {
-          id: 1,
-          pluginId: 'catalog',
-          roleEntityRef: 'role:default/test',
+      const conditionDecision: RoleConditionalPolicyDecision = {
+        id: 1,
+        pluginId: 'catalog',
+        roleEntityRef: 'role:default/test',
+        resourceType: 'catalog-entity',
+        permissionMapping: ['read'],
+        result: AuthorizeResult.CONDITIONAL,
+        conditions: {
+          rule: 'IS_ENTITY_OWNER',
           resourceType: 'catalog-entity',
-          permissionMapping: ['read'],
-          result: AuthorizeResult.CONDITIONAL,
-          conditions: {
-            rule: 'IS_ENTITY_OWNER',
-            resourceType: 'catalog-entity',
-            params: { claims: ['group:default/team-a'] },
-          },
-        };
+          params: { claims: ['group:default/team-a'] },
+        },
+      };
 
       const result = await request(app)
         .put('/roles/conditions/1')

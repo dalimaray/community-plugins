@@ -1,5 +1,42 @@
 # @backstage-community/plugin-search-backend-module-azure-devops
 
+## 0.10.0
+
+### Minor Changes
+
+- 4fcd1ca: Added support for non-PAT credentials (service principals, managed identities) via `DefaultAzureDevOpsCredentialsProvider` from `@backstage/integration`. The `token` config field is now deprecated in favor of `integrations.azure`. The `baseUrl` config field is now optional, defaulting to `https://dev.azure.com`.
+
+## 0.9.0
+
+### Minor Changes
+
+- 6c8035e: Backstage version bump to v1.54.5
+
+## 0.8.0
+
+### Minor Changes
+
+- 6213c8b: Backstage version bump to v1.53.0
+
+## 0.7.0
+
+### Minor Changes
+
+- 9f8f870: Backstage version bump to v1.51.0
+- 5b83efb: Backstage version bump to v1.52.0
+
+## 0.6.0
+
+### Minor Changes
+
+- f2f1e66: Backstage version bump to v1.50.2
+
+## 0.5.0
+
+### Minor Changes
+
+- 7c1dfa3: Backstage version bump to v1.49.2
+
 ## 0.4.1
 
 ### Patch Changes

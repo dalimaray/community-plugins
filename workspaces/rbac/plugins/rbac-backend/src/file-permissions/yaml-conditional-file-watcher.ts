@@ -15,38 +15,104 @@
  */
 import type {
   AuditorService,
-  AuthService,
   LoggerService,
 } from '@backstage/backend-plugin-api';
+import { InputError } from '@backstage/errors';
 
 import yaml from 'js-yaml';
 import { omit } from 'lodash';
 
-import type {
-  PermissionAction,
-  RoleConditionalPolicyDecision,
+import {
+  type RoleConditionalPolicyDecision,
+  permissionMappingAction,
 } from '@backstage-community/plugin-rbac-common';
 
 import fs from 'fs';
 
 import { ActionType, ConditionEvents } from '../auditor/auditor';
 import { ConditionalStorage } from '../database/conditional-storage';
-import { RoleMetadataStorage } from '../database/role-metadata';
-import { deepSortEqual, processConditionMapping } from '../helper';
+import {
+  RoleMetadataDao,
+  RoleMetadataStorage,
+} from '../database/role-metadata';
+import {
+  abortConditionalPolicyReconcile,
+  deepSortEqual,
+  diffConditionalPolicies,
+  pendingDeleteIdsFromPlan,
+  planConditionalReconcile,
+  toError,
+} from '../helper';
 import { RoleEventEmitter, RoleEvents } from '../service/enforcer-delegate';
-import { PluginPermissionMetadataCollector } from '../service/plugin-endpoints';
-import { validateRoleCondition } from '../validation/condition-validation';
+import {
+  type ConditionValidationLimits,
+  validateRoleCondition,
+} from '../validation/condition-validation';
 import { AbstractFileWatcher } from './file-watcher';
 
-type ConditionalPoliciesDiff = {
-  addedConditions: RoleConditionalPolicyDecision<PermissionAction>[];
-  removedConditions: RoleConditionalPolicyDecision<PermissionAction>[];
+export type ConditionalPoliciesFileLimits = {
+  maxBytes: number;
+  maxDocuments: number;
 };
 
-export class YamlConditinalPoliciesFileWatcher extends AbstractFileWatcher<
-  RoleConditionalPolicyDecision<PermissionAction>[]
+export const DEFAULT_CONDITIONAL_POLICIES_FILE_LIMITS: ConditionalPoliciesFileLimits =
+  {
+    maxBytes: 1024 * 1024,
+    maxDocuments: 256,
+  };
+
+function assertPositiveIntegerConditionalPoliciesFileLimit(
+  value: number,
+  fieldRef: string,
+): void {
+  if (!Number.isInteger(value) || value <= 0) {
+    throw new InputError(
+      `'${fieldRef}' must be a positive integer for conditional policies file validation`,
+    );
+  }
+}
+
+/**
+ * Merges optional overrides with defaults and validates both limits are positive integers.
+ */
+export function resolveConditionalPoliciesFileLimits(
+  partial: Partial<ConditionalPoliciesFileLimits> = {},
+  errorFieldRefs?: {
+    maxBytes: string;
+    maxDocuments: string;
+  },
+): ConditionalPoliciesFileLimits {
+  const resolved: ConditionalPoliciesFileLimits = {
+    maxBytes:
+      partial.maxBytes ?? DEFAULT_CONDITIONAL_POLICIES_FILE_LIMITS.maxBytes,
+    maxDocuments:
+      partial.maxDocuments ??
+      DEFAULT_CONDITIONAL_POLICIES_FILE_LIMITS.maxDocuments,
+  };
+  assertPositiveIntegerConditionalPoliciesFileLimit(
+    resolved.maxBytes,
+    errorFieldRefs?.maxBytes ?? 'maxBytes',
+  );
+  assertPositiveIntegerConditionalPoliciesFileLimit(
+    resolved.maxDocuments,
+    errorFieldRefs?.maxDocuments ?? 'maxDocuments',
+  );
+  return resolved;
+}
+
+function yamlConditionEquals(
+  stored: RoleConditionalPolicyDecision,
+  desired: RoleConditionalPolicyDecision,
+): boolean {
+  return deepSortEqual(omit(stored, ['id']), omit(desired, ['id']));
+}
+
+export class YamlConditionalPoliciesFileWatcher extends AbstractFileWatcher<
+  RoleConditionalPolicyDecision[]
 > {
-  private conditionsDiff: ConditionalPoliciesDiff;
+  private readonly maxFileBytes: number;
+  private readonly maxFileDocuments: number;
+  private readonly conditionValidationLimits: ConditionValidationLimits;
 
   constructor(
     filePath: string | undefined,
@@ -54,17 +120,17 @@ export class YamlConditinalPoliciesFileWatcher extends AbstractFileWatcher<
     logger: LoggerService,
     private readonly conditionalStorage: ConditionalStorage,
     private readonly auditor: AuditorService,
-    private readonly auth: AuthService,
-    private readonly pluginMetadataCollector: PluginPermissionMetadataCollector,
     private readonly roleMetadataStorage: RoleMetadataStorage,
     private readonly roleEventEmitter: RoleEventEmitter<RoleEvents>,
+    conditionValidationLimits: ConditionValidationLimits,
+    limits: Partial<ConditionalPoliciesFileLimits> = {},
   ) {
     super(filePath, allowReload, logger);
 
-    this.conditionsDiff = {
-      addedConditions: [],
-      removedConditions: [],
-    };
+    const resolvedLimits = resolveConditionalPoliciesFileLimits(limits);
+    this.maxFileBytes = resolvedLimits.maxBytes;
+    this.maxFileDocuments = resolvedLimits.maxDocuments;
+    this.conditionValidationLimits = conditionValidationLimits;
   }
 
   async initialize(): Promise<void> {
@@ -93,69 +159,7 @@ export class YamlConditinalPoliciesFileWatcher extends AbstractFileWatcher<
 
   async onChange(): Promise<void> {
     try {
-      const newConds = this.parse();
-
-      const addedConds: RoleConditionalPolicyDecision<PermissionAction>[] = [];
-      const removedConds: RoleConditionalPolicyDecision<PermissionAction>[] =
-        [];
-
-      const csvFileRoles =
-        await this.roleMetadataStorage.filterRoleMetadata('csv-file');
-      const existedFileConds = (
-        await this.conditionalStorage.filterConditions(
-          csvFileRoles.map(role => role.roleEntityRef),
-        )
-      ).map(condition => {
-        return {
-          ...condition,
-          permissionMapping: condition.permissionMapping.map(pm => pm.action),
-        };
-      });
-
-      // Find added conditions
-      for (const condition of newConds) {
-        const roleMetadata = csvFileRoles.find(
-          role => condition.roleEntityRef === role.roleEntityRef,
-        );
-        if (!roleMetadata) {
-          this.logger.warn(
-            `skip to add condition for role '${condition.roleEntityRef}'. The role either does not exist or was not created from a CSV file.`,
-          );
-          continue;
-        }
-        if (roleMetadata.source !== 'csv-file') {
-          this.logger.warn(
-            `skip to add condition for role '${condition.roleEntityRef}'. Role is not from csv-file`,
-          );
-          continue;
-        }
-
-        const existingCondition = existedFileConds.find(c =>
-          deepSortEqual(omit(c, ['id']), omit(condition, ['id'])),
-        );
-
-        if (!existingCondition) {
-          addedConds.push(condition);
-        }
-      }
-
-      // Find removed conditions
-      for (const condition of existedFileConds) {
-        if (
-          !newConds.find(c =>
-            deepSortEqual(omit(c, ['id']), omit(condition, ['id'])),
-          )
-        ) {
-          removedConds.push(condition);
-        }
-      }
-
-      this.conditionsDiff = {
-        addedConditions: addedConds,
-        removedConditions: removedConds,
-      };
-
-      await this.handleFileChanges();
+      await this.syncYamlConditionalPoliciesFile();
     } catch (error) {
       const auditorEvent = await this.auditor.createEvent({
         eventId: ConditionEvents.CONDITIONAL_POLICIES_FILE_CHANGE,
@@ -171,97 +175,218 @@ export class YamlConditinalPoliciesFileWatcher extends AbstractFileWatcher<
    * Reads the current contents of the file and parses it.
    * @returns parsed data.
    */
-  parse(): RoleConditionalPolicyDecision<PermissionAction>[] {
+  parse(): RoleConditionalPolicyDecision[] {
     const fileContents = this.getCurrentContents();
-    const data = yaml
-      .loadAll(fileContents)
-      .filter(
-        doc => doc !== null,
-      ) as RoleConditionalPolicyDecision<PermissionAction>[];
-
-    for (const condition of data) {
-      validateRoleCondition(condition);
+    const fileSizeInBytes = Buffer.byteLength(fileContents, 'utf8');
+    if (fileSizeInBytes > this.maxFileBytes) {
+      throw new InputError(
+        `conditional policies file exceeds maximum size of ${this.maxFileBytes} bytes`,
+      );
     }
 
-    return data;
-  }
+    const parsedDocuments: RoleConditionalPolicyDecision[] = [];
+    yaml.loadAll(fileContents, doc => {
+      if (doc === null) {
+        return;
+      }
 
-  private async handleFileChanges(): Promise<void> {
-    await this.removeConditions();
-    await this.addConditions();
-  }
-
-  private async addConditions(): Promise<void> {
-    for (const condition of this.conditionsDiff.addedConditions) {
-      const auditorEvent = await this.auditor.createEvent({
-        eventId: ConditionEvents.CONDITION_WRITE,
-        severityLevel: 'medium',
-        meta: { actionType: ActionType.CREATE },
-      });
-
-      try {
-        const conditionToCreate = await processConditionMapping(
-          condition,
-          this.pluginMetadataCollector,
-          this.auth,
+      parsedDocuments.push(doc as RoleConditionalPolicyDecision);
+      if (parsedDocuments.length > this.maxFileDocuments) {
+        throw new InputError(
+          `conditional policies file exceeds maximum of ${this.maxFileDocuments} YAML documents`,
         );
-
-        await this.conditionalStorage.createCondition(conditionToCreate);
-        await auditorEvent.success({
-          meta: { condition },
-        });
-      } catch (error) {
-        await auditorEvent.fail({ error, meta: { condition } });
       }
+    });
+
+    for (const condition of parsedDocuments) {
+      validateRoleCondition(condition, this.conditionValidationLimits);
     }
 
-    this.conditionsDiff.addedConditions = [];
+    return parsedDocuments;
   }
 
-  private async removeConditions(): Promise<void> {
-    for (const condition of this.conditionsDiff.removedConditions) {
-      const auditorEvent = await this.auditor.createEvent({
-        eventId: ConditionEvents.CONDITION_WRITE,
-        severityLevel: 'medium',
-        meta: { actionType: ActionType.DELETE },
-      });
+  private async syncYamlConditionalPoliciesFile(): Promise<void> {
+    const parsed = this.parse();
+    const csvFileSourcedRoles =
+      await this.roleMetadataStorage.filterRoleMetadata('csv-file');
+    const fileDesired = this.filterParsedToCsvFileSourcedRoles(
+      parsed,
+      csvFileSourcedRoles,
+    );
+    const stored = await this.loadStoredConditionsForRoles(csvFileSourcedRoles);
+    const diff = diffConditionalPolicies(
+      stored,
+      fileDesired,
+      yamlConditionEquals,
+    );
 
-      try {
-        const conditionToDelete = (
-          await this.conditionalStorage.filterConditions(
-            condition.roleEntityRef,
-            condition.pluginId,
-            condition.resourceType,
-            condition.permissionMapping,
-          )
-        )[0];
-        await this.conditionalStorage.deleteCondition(conditionToDelete.id!);
-        await auditorEvent.success({ meta: { condition } });
-      } catch (error) {
-        await auditorEvent.fail({
-          error,
-          meta: { condition },
-        });
-      }
+    if (diff.toAdd.length === 0 && diff.toRemove.length === 0) {
+      return;
     }
 
-    this.conditionsDiff.removedConditions = [];
+    try {
+      const plan = planConditionalReconcile(diff.toAdd, diff.toRemove, item =>
+        item.permissionMapping.map(permissionMappingAction),
+      );
+      const pendingDeleteIds = pendingDeleteIdsFromPlan(plan);
+
+      for (const { stored: storedRow, desired } of plan.updates) {
+        await this.persistConditionUpdate(
+          storedRow.id!,
+          desired,
+          pendingDeleteIds,
+        );
+      }
+
+      for (const conditionToCreate of plan.creates) {
+        await this.persistConditionCreate(conditionToCreate, pendingDeleteIds);
+      }
+
+      for (const condition of plan.deletes) {
+        await this.persistConditionDelete(condition);
+      }
+    } catch (error) {
+      await abortConditionalPolicyReconcile({
+        logger: this.logger,
+        auditor: this.auditor,
+        source: 'conditional-policies-file',
+        abortEventId: ConditionEvents.CONDITIONAL_POLICIES_FILE_CHANGE,
+        pendingAdds: diff.toAdd.length,
+        pendingRemoves: diff.toRemove.length,
+        pluginIds: [...new Set(diff.toAdd.map(c => c.pluginId))],
+        error: toError(error),
+      });
+    }
+  }
+
+  private filterParsedToCsvFileSourcedRoles(
+    parsed: RoleConditionalPolicyDecision[],
+    csvFileSourcedRoles: RoleMetadataDao[],
+  ): RoleConditionalPolicyDecision[] {
+    const fileDesired: RoleConditionalPolicyDecision[] = [];
+
+    for (const condition of parsed) {
+      const roleMetadata = csvFileSourcedRoles.find(
+        role => condition.roleEntityRef === role.roleEntityRef,
+      );
+      if (!roleMetadata) {
+        this.logger.warn(
+          `skip to add condition for role '${condition.roleEntityRef}'. The role either does not exist or was not created from a CSV file.`,
+        );
+        continue;
+      }
+      if (roleMetadata.source !== 'csv-file') {
+        this.logger.warn(
+          `skip to add condition for role '${condition.roleEntityRef}'. Role is not from csv-file`,
+        );
+        continue;
+      }
+      fileDesired.push(condition);
+    }
+
+    return fileDesired;
+  }
+
+  private async loadStoredConditionsForRoles(
+    csvFileSourcedRoles: RoleMetadataDao[],
+  ): Promise<RoleConditionalPolicyDecision[]> {
+    return this.conditionalStorage.filterConditions(
+      csvFileSourcedRoles.map(role => role.roleEntityRef),
+    );
+  }
+
+  private async persistConditionUpdate(
+    id: number,
+    conditionToUpdate: RoleConditionalPolicyDecision,
+    pendingDeleteIds: ReadonlySet<number>,
+  ): Promise<void> {
+    const auditorEvent = await this.auditor.createEvent({
+      eventId: ConditionEvents.CONDITION_WRITE,
+      severityLevel: 'medium',
+      meta: { actionType: ActionType.UPDATE },
+    });
+
+    try {
+      await this.conditionalStorage.updateCondition(
+        id,
+        conditionToUpdate,
+        undefined,
+        pendingDeleteIds,
+      );
+      await auditorEvent.success({
+        meta: { condition: conditionToUpdate },
+      });
+    } catch (error) {
+      await auditorEvent.fail({
+        error,
+        meta: { condition: conditionToUpdate },
+      });
+      throw error;
+    }
+  }
+
+  private async persistConditionCreate(
+    conditionToCreate: RoleConditionalPolicyDecision,
+    pendingDeleteIds: ReadonlySet<number>,
+  ): Promise<void> {
+    const auditorEvent = await this.auditor.createEvent({
+      eventId: ConditionEvents.CONDITION_WRITE,
+      severityLevel: 'medium',
+      meta: { actionType: ActionType.CREATE },
+    });
+
+    try {
+      await this.conditionalStorage.createCondition(
+        conditionToCreate,
+        pendingDeleteIds,
+      );
+      await auditorEvent.success({
+        meta: { condition: conditionToCreate },
+      });
+    } catch (error) {
+      await auditorEvent.fail({
+        error,
+        meta: { condition: conditionToCreate },
+      });
+      throw error;
+    }
+  }
+
+  private async persistConditionDelete(
+    condition: RoleConditionalPolicyDecision,
+  ): Promise<void> {
+    const auditorEvent = await this.auditor.createEvent({
+      eventId: ConditionEvents.CONDITION_WRITE,
+      severityLevel: 'medium',
+      meta: { actionType: ActionType.DELETE },
+    });
+
+    const deleteMeta = { condition };
+
+    try {
+      if (condition.id === undefined) {
+        throw new InputError(
+          `Cannot delete conditional policy without stored id for role '${condition.roleEntityRef}'`,
+        );
+      }
+      await this.conditionalStorage.deleteCondition(condition.id);
+      await auditorEvent.success({ meta: deleteMeta });
+    } catch (error) {
+      await auditorEvent.fail({
+        error,
+        meta: deleteMeta,
+      });
+      throw error;
+    }
   }
 
   async cleanUpConditionalPolicies(): Promise<void> {
     const csvFileRoles =
       await this.roleMetadataStorage.filterRoleMetadata('csv-file');
-    const existedFileConds = (
-      await this.conditionalStorage.filterConditions(
-        csvFileRoles.map(role => role.roleEntityRef),
-      )
-    ).map(condition => {
-      return {
-        ...condition,
-        permissionMapping: condition.permissionMapping.map(pm => pm.action),
-      };
-    });
-    this.conditionsDiff.removedConditions = existedFileConds;
-    await this.removeConditions();
+    const existedFileConds =
+      await this.loadStoredConditionsForRoles(csvFileRoles);
+    for (const condition of existedFileConds) {
+      await this.persistConditionDelete(condition);
+    }
   }
 }

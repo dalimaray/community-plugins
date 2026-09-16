@@ -16,7 +16,7 @@
 import { mockServices } from '@backstage/backend-test-utils';
 import {
   AuthorizeResult,
-  type MetadataResponse,
+  MetadataResponse,
 } from '@backstage/plugin-permission-common';
 
 import { resolve } from 'path';
@@ -29,15 +29,16 @@ import {
 } from '../database/role-metadata';
 import { RoleEventEmitter, RoleEvents } from '../service/enforcer-delegate';
 import { PluginPermissionMetadataCollector } from '../service/plugin-endpoints';
-import { YamlConditinalPoliciesFileWatcher } from './yaml-conditional-file-watcher'; // Adjust the import path as necessary
+import {
+  resolveConditionalPoliciesFileLimits,
+  YamlConditionalPoliciesFileWatcher,
+} from './yaml-conditional-file-watcher';
+import { DEFAULT_CONDITION_VALIDATION_LIMITS } from '../validation/condition-validation';
 import { mockAuditorService } from '../../__fixtures__/mock-utils';
 import { expectAuditorLog } from '../../__fixtures__/auditor-test-utils';
-import {
-  PermissionInfo,
-  RoleConditionalPolicyDecision,
-} from '@backstage-community/plugin-rbac-common';
+import { RoleConditionalPolicyDecision } from '@backstage-community/plugin-rbac-common';
 import { JsonObject } from '@backstage/types';
-import { NotFoundError } from '@backstage/errors';
+import { InputError, NotFoundError } from '@backstage/errors';
 
 const mockLoggerService = mockServices.logger.mock();
 
@@ -51,8 +52,6 @@ const conditionalStorageMock: Partial<DataBaseConditionalStorage> = {
   deleteCondition: jest.fn().mockImplementation(),
   updateCondition: jest.fn().mockImplementation(),
 };
-
-const mockAuthService = mockServices.auth();
 
 const testPluginMetadataResp: MetadataResponse = {
   permissions: [
@@ -113,17 +112,13 @@ const testPluginMetadataResp: MetadataResponse = {
   ],
 };
 
-const conditionToStore1: Partial<
-  RoleConditionalPolicyDecision<PermissionInfo>
-> &
-  Required<
-    Pick<RoleConditionalPolicyDecision<PermissionInfo>, 'permissionMapping'>
-  > = {
+const conditionToStore1: Partial<RoleConditionalPolicyDecision> &
+  Required<Pick<RoleConditionalPolicyDecision, 'permissionMapping'>> = {
   result: AuthorizeResult.CONDITIONAL,
   roleEntityRef: 'role:default/test',
   pluginId: 'catalog',
   resourceType: 'catalog-entity',
-  permissionMapping: [{ name: 'catalog.entity.refresh', action: 'update' }],
+  permissionMapping: ['update'],
   conditions: {
     rule: 'IS_ENTITY_OWNER',
     resourceType: 'catalog-entity',
@@ -133,20 +128,13 @@ const conditionToStore1: Partial<
   },
 };
 
-const conditionToStore2: Partial<
-  RoleConditionalPolicyDecision<PermissionInfo>
-> &
-  Required<
-    Pick<RoleConditionalPolicyDecision<PermissionInfo>, 'permissionMapping'>
-  > = {
+const conditionToStore2: Partial<RoleConditionalPolicyDecision> &
+  Required<Pick<RoleConditionalPolicyDecision, 'permissionMapping'>> = {
   result: AuthorizeResult.CONDITIONAL,
   roleEntityRef: 'role:default/test',
   pluginId: 'catalog',
   resourceType: 'catalog-entity',
-  permissionMapping: [
-    { name: 'catalog.entity.read', action: 'read' },
-    { name: 'catalog.entity.delete', action: 'delete' },
-  ],
+  permissionMapping: ['read', 'delete'],
   conditions: {
     rule: 'IS_ENTITY_OWNER',
     resourceType: 'catalog-entity',
@@ -156,18 +144,14 @@ const conditionToStore2: Partial<
   },
 };
 
-const conditionToRemove: Partial<
-  RoleConditionalPolicyDecision<PermissionInfo>
-> &
-  Required<
-    Pick<RoleConditionalPolicyDecision<PermissionInfo>, 'permissionMapping'>
-  > = {
+const conditionToRemove: Partial<RoleConditionalPolicyDecision> &
+  Required<Pick<RoleConditionalPolicyDecision, 'permissionMapping'>> = {
   id: 2,
   result: AuthorizeResult.CONDITIONAL,
   roleEntityRef: 'role:default/dev',
   pluginId: 'catalog',
   resourceType: 'catalog-entity',
-  permissionMapping: [{ name: 'catalog.entity.read', action: 'read' }],
+  permissionMapping: ['read'],
   conditions: {
     rule: 'IS_ENTITY_OWNER',
     resourceType: 'catalog-entity',
@@ -193,6 +177,9 @@ const roleMetadataStorageMock: RoleMetadataStorage = {
   createRoleMetadata: jest.fn().mockImplementation(),
   updateRoleMetadata: jest.fn().mockImplementation(),
   removeRoleMetadata: jest.fn().mockImplementation(),
+  getCachedDefaultRoleMetadata: jest.fn().mockImplementation(() => undefined),
+  getDefaultRole: jest.fn().mockResolvedValue(undefined),
+  syncDefaultRoleMetadata: jest.fn().mockResolvedValue(undefined),
 };
 
 const roleEventEmitterMock: RoleEventEmitter<RoleEvents> = {
@@ -222,22 +209,90 @@ describe('YamlConditionalFileWatcher', () => {
 
     conditionalStorageMock.createCondition = jest.fn().mockImplementation();
     conditionalStorageMock.deleteCondition = jest.fn().mockImplementation();
+    conditionalStorageMock.updateCondition = jest.fn().mockImplementation();
+    pluginMetadataCollectorMock.getMetadataByPluginId = jest
+      .fn()
+      .mockImplementation(async () => testPluginMetadataResp);
     jest.clearAllMocks();
   });
 
-  function createWatcher(filePath?: string): YamlConditinalPoliciesFileWatcher {
-    return new YamlConditinalPoliciesFileWatcher(
+  function createWatcher(
+    filePath?: string,
+  ): YamlConditionalPoliciesFileWatcher {
+    return new YamlConditionalPoliciesFileWatcher(
       filePath,
       false,
       mockLoggerService,
       conditionalStorageMock as DataBaseConditionalStorage,
       mockAuditorService,
-      mockAuthService,
-      pluginMetadataCollectorMock as PluginPermissionMetadataCollector,
       roleMetadataStorageMock,
       roleEventEmitterMock,
+      DEFAULT_CONDITION_VALIDATION_LIMITS,
     );
   }
+
+  function createWatcherWithLimits(
+    filePath: string | undefined,
+    maxBytes: number,
+    maxDocuments: number,
+  ): YamlConditionalPoliciesFileWatcher {
+    return new YamlConditionalPoliciesFileWatcher(
+      filePath,
+      false,
+      mockLoggerService,
+      conditionalStorageMock as DataBaseConditionalStorage,
+      mockAuditorService,
+      roleMetadataStorageMock,
+      roleEventEmitterMock,
+      DEFAULT_CONDITION_VALIDATION_LIMITS,
+      {
+        maxBytes,
+        maxDocuments,
+      },
+    );
+  }
+
+  describe('conditional policies file limit validation', () => {
+    it('throws InputError when maxBytes is zero', () => {
+      expect(() => createWatcherWithLimits(csvFileName, 0, 256)).toThrow(
+        InputError,
+      );
+      expect(() => createWatcherWithLimits(csvFileName, 0, 256)).toThrow(
+        `'maxBytes' must be a positive integer for conditional policies file validation`,
+      );
+    });
+
+    it('throws InputError when maxDocuments is zero', () => {
+      expect(() => createWatcherWithLimits(csvFileName, 1024, 0)).toThrow(
+        InputError,
+      );
+      expect(() => createWatcherWithLimits(csvFileName, 1024, 0)).toThrow(
+        `'maxDocuments' must be a positive integer for conditional policies file validation`,
+      );
+    });
+
+    it('throws InputError when maxBytes is not an integer', () => {
+      expect(() => createWatcherWithLimits(csvFileName, 1024.5, 10)).toThrow(
+        InputError,
+      );
+    });
+
+    it('includes config key path in InputError when provided', () => {
+      expect(() =>
+        resolveConditionalPoliciesFileLimits(
+          { maxBytes: 0 },
+          {
+            maxBytes:
+              'permission.rbac.validation.conditionalPoliciesFile.maxBytes',
+            maxDocuments:
+              'permission.rbac.validation.conditionalPoliciesFile.maxDocuments',
+          },
+        ),
+      ).toThrow(
+        `'permission.rbac.validation.conditionalPoliciesFile.maxBytes' must be a positive integer for conditional policies file validation`,
+      );
+    });
+  });
 
   test('handles errors for invalid file paths', async () => {
     const invalidFilePath = 'invalid-file-path.yaml';
@@ -264,8 +319,100 @@ describe('YamlConditionalFileWatcher', () => {
       {
         event: { eventId: ConditionEvents.CONDITIONAL_POLICIES_FILE_CHANGE },
         fail: {
-          error: new Error(
+          error: new InputError(
             `'roleEntityRef' must be specified in the role condition`,
+          ),
+        },
+      },
+    ]);
+  });
+
+  test('handles error when yaml conditional policies file exceeds max size', async () => {
+    const watcher = createWatcher(csvFileName);
+    jest
+      .spyOn(watcher, 'getCurrentContents')
+      .mockReturnValue('x'.repeat(1024 * 1024 + 1));
+
+    await watcher.onChange();
+
+    expectAuditorLog([
+      {
+        event: { eventId: ConditionEvents.CONDITIONAL_POLICIES_FILE_CHANGE },
+        fail: {
+          error: new InputError(
+            'conditional policies file exceeds maximum size of 1048576 bytes',
+          ),
+        },
+      },
+    ]);
+  });
+
+  test('handles error when yaml conditional policies exceeds max documents', async () => {
+    const watcher = createWatcher(csvFileName);
+    const conditionalPolicyDocument = [
+      'result: CONDITIONAL',
+      'roleEntityRef: role:default/test',
+      'pluginId: catalog',
+      'resourceType: catalog-entity',
+      'permissionMapping:',
+      '  - read',
+      'conditions:',
+      '  rule: IS_ENTITY_OWNER',
+      '  resourceType: catalog-entity',
+      '  params:',
+      '    claims:',
+      '      - group:default/team-a',
+    ].join('\n');
+    const yamlDocument = Array.from(
+      { length: 257 },
+      () => conditionalPolicyDocument,
+    ).join('\n---\n');
+    jest.spyOn(watcher, 'getCurrentContents').mockReturnValue(yamlDocument);
+
+    await watcher.onChange();
+
+    expectAuditorLog([
+      {
+        event: { eventId: ConditionEvents.CONDITIONAL_POLICIES_FILE_CHANGE },
+        fail: {
+          error: new InputError(
+            'conditional policies file exceeds maximum of 256 YAML documents',
+          ),
+        },
+      },
+    ]);
+  });
+
+  test('handles error when configured yaml document limit is exceeded', async () => {
+    const watcher = createWatcherWithLimits(csvFileName, 1024 * 1024, 1);
+    const conditionalPolicyDocument = [
+      'result: CONDITIONAL',
+      'roleEntityRef: role:default/test',
+      'pluginId: catalog',
+      'resourceType: catalog-entity',
+      'permissionMapping:',
+      '  - read',
+      'conditions:',
+      '  rule: IS_ENTITY_OWNER',
+      '  resourceType: catalog-entity',
+      '  params:',
+      '    claims:',
+      '      - group:default/team-a',
+    ].join('\n');
+    const yamlDocument = [
+      conditionalPolicyDocument,
+      conditionalPolicyDocument,
+    ].join('\n---\n');
+    jest.spyOn(watcher, 'getCurrentContents').mockReturnValue(yamlDocument);
+
+    await watcher.onChange();
+
+    expectAuditorLog([
+      {
+        event: { eventId: ConditionEvents.CONDITIONAL_POLICIES_FILE_CHANGE },
+        fail: {
+          error: new InputError(
+            'conditional policies file exceeds maximum of 1 YAML documents',
           ),
         },
       },
@@ -291,7 +438,8 @@ describe('YamlConditionalFileWatcher', () => {
     const watcher = createWatcher(csvFileName);
     await watcher.initialize();
 
-    expect(conditionalStorageMock.createCondition).toHaveBeenCalled();
+    expect(conditionalStorageMock.createCondition).toHaveBeenCalledTimes(1);
+    expect(mockLoggerService.error).toHaveBeenCalled();
     expectAuditorLog([
       {
         event: {
@@ -300,17 +448,29 @@ describe('YamlConditionalFileWatcher', () => {
         },
         fail: {
           error: new Error('unknown error message 1'),
-          ...mappedConditionMeta(conditionToStore1),
+          meta: {
+            condition: conditionToStore1,
+          },
         },
       },
       {
         event: {
-          eventId: ConditionEvents.CONDITION_WRITE,
-          meta: { actionType: ActionType.CREATE },
+          eventId: ConditionEvents.CONDITIONAL_POLICIES_FILE_CHANGE,
+          meta: {
+            source: 'conditional-policies-file',
+            pendingAdds: 2,
+            pendingRemoves: 0,
+            pluginIds: ['catalog'],
+          },
         },
         fail: {
-          error: new Error('unknown error message 2'),
-          ...mappedConditionMeta(conditionToStore2),
+          error: new Error('unknown error message 1'),
+          meta: {
+            source: 'conditional-policies-file',
+            pendingAdds: 2,
+            pendingRemoves: 0,
+            pluginIds: ['catalog'],
+          },
         },
       },
     ]);
@@ -329,9 +489,11 @@ describe('YamlConditionalFileWatcher', () => {
 
     expect(conditionalStorageMock.createCondition).toHaveBeenCalledWith(
       conditionToStore1,
+      expect.any(Set),
     );
     expect(conditionalStorageMock.createCondition).toHaveBeenCalledWith(
       conditionToStore2,
+      expect.any(Set),
     );
     expectAuditorLog([
       {
@@ -402,7 +564,7 @@ describe('YamlConditionalFileWatcher', () => {
       roleEntityRef: 'role:default/test-2',
       pluginId: 'catalog',
       resourceType: 'catalog-entity',
-      permissionMapping: [{ name: 'catalog.entity.refresh', action: 'update' }],
+      permissionMapping: ['update'],
       conditions: {
         rule: 'IS_ENTITY_OWNER',
         resourceType: 'catalog-entity',
@@ -416,10 +578,7 @@ describe('YamlConditionalFileWatcher', () => {
       roleEntityRef: 'role:default/test-3',
       pluginId: 'catalog',
       resourceType: 'catalog-entity',
-      permissionMapping: [
-        { name: 'catalog.entity.read', action: 'read' },
-        { name: 'catalog.entity.delete', action: 'delete' },
-      ],
+      permissionMapping: ['read', 'delete'],
       conditions: {
         rule: 'IS_ENTITY_OWNER',
         resourceType: 'catalog-entity',
@@ -431,9 +590,11 @@ describe('YamlConditionalFileWatcher', () => {
 
     expect(conditionalStorageMock.createCondition).toHaveBeenCalledWith(
       expectedCondition1,
+      expect.any(Set),
     );
     expect(conditionalStorageMock.createCondition).toHaveBeenCalledWith(
       expectedCondition2,
+      expect.any(Set),
     );
     expectAuditorLog([
       {
@@ -531,6 +692,114 @@ describe('YamlConditionalFileWatcher', () => {
     expect(conditionalStorageMock.deleteCondition).toHaveBeenCalledWith(2);
   });
 
+  test('should merge sibling yaml conditions via update and delete', async () => {
+    const storedRead = {
+      id: 1,
+      result: AuthorizeResult.CONDITIONAL,
+      roleEntityRef: 'role:default/test',
+      pluginId: 'catalog',
+      resourceType: 'catalog-entity',
+      permissionMapping: ['read'],
+      conditions: conditionToStore1.conditions,
+    };
+    const storedDelete = {
+      id: 2,
+      result: AuthorizeResult.CONDITIONAL,
+      roleEntityRef: 'role:default/test',
+      pluginId: 'catalog',
+      resourceType: 'catalog-entity',
+      permissionMapping: ['delete'],
+      conditions: conditionToStore1.conditions,
+    };
+
+    conditionalStorageMock.filterConditions = jest
+      .fn()
+      .mockImplementation(() => [storedRead, storedDelete]);
+    roleMetadataStorageMock.filterRoleMetadata = jest
+      .fn()
+      .mockImplementation(() => csvFileRoles);
+
+    const mergedYaml = [
+      'result: CONDITIONAL',
+      'roleEntityRef: role:default/test',
+      'pluginId: catalog',
+      'resourceType: catalog-entity',
+      'permissionMapping:',
+      '  - read',
+      '  - delete',
+      'conditions:',
+      '  rule: IS_ENTITY_OWNER',
+      '  resourceType: catalog-entity',
+      '  params:',
+      '    claims:',
+      '      - group:default/team-a',
+    ].join('\n');
+
+    const watcher = createWatcher(csvFileName);
+    jest.spyOn(watcher, 'getCurrentContents').mockReturnValue(mergedYaml);
+    await watcher.onChange();
+
+    expect(conditionalStorageMock.updateCondition).toHaveBeenCalledWith(
+      1,
+      expect.objectContaining({
+        permissionMapping: expect.arrayContaining(['read', 'delete']),
+      }),
+      undefined,
+      new Set([2]),
+    );
+    expect(conditionalStorageMock.deleteCondition).toHaveBeenCalledWith(2);
+    expect(conditionalStorageMock.createCondition).not.toHaveBeenCalled();
+  });
+
+  test('should not reconcile when only array element order differs', async () => {
+    const storedWithReorderedArrays = {
+      id: 2,
+      ...conditionToStore2,
+      permissionMapping: ['delete', 'read'],
+      conditions: {
+        ...conditionToStore2.conditions,
+        params: {
+          claims: ['group:default/team-b', 'group:default/team-a'],
+        },
+      },
+    };
+
+    conditionalStorageMock.filterConditions = jest
+      .fn()
+      .mockImplementation(() => [storedWithReorderedArrays]);
+    roleMetadataStorageMock.filterRoleMetadata = jest
+      .fn()
+      .mockImplementation(() => csvFileRoles);
+
+    const yamlWithCanonicalOrder = [
+      'result: CONDITIONAL',
+      'roleEntityRef: role:default/test',
+      'pluginId: catalog',
+      'resourceType: catalog-entity',
+      'permissionMapping:',
+      '  - read',
+      '  - delete',
+      'conditions:',
+      '  rule: IS_ENTITY_OWNER',
+      '  resourceType: catalog-entity',
+      '  params:',
+      '    claims:',
+      '      - group:default/team-a',
+      '      - group:default/team-b',
+    ].join('\n');
+
+    const watcher = createWatcher(csvFileName);
+    jest
+      .spyOn(watcher, 'getCurrentContents')
+      .mockReturnValue(yamlWithCanonicalOrder);
+    await watcher.onChange();
+
+    expect(conditionalStorageMock.createCondition).not.toHaveBeenCalled();
+    expect(conditionalStorageMock.updateCondition).not.toHaveBeenCalled();
+    expect(conditionalStorageMock.deleteCondition).not.toHaveBeenCalled();
+    expectAuditorLog([]);
+  });
+
   test('should handle error on delete condition', async () => {
     conditionalStorageMock.filterConditions = jest
       .fn()
@@ -559,6 +828,26 @@ describe('YamlConditionalFileWatcher', () => {
         fail: {
           error: new NotFoundError('Condition was not found'),
           ...mappedConditionMeta(conditionToRemove),
+        },
+      },
+      {
+        event: {
+          eventId: ConditionEvents.CONDITIONAL_POLICIES_FILE_CHANGE,
+          meta: {
+            source: 'conditional-policies-file',
+            pendingAdds: 0,
+            pendingRemoves: 1,
+            pluginIds: [],
+          },
+        },
+        fail: {
+          error: new NotFoundError('Condition was not found'),
+          meta: {
+            source: 'conditional-policies-file',
+            pendingAdds: 0,
+            pendingRemoves: 1,
+            pluginIds: [],
+          },
         },
       },
     ]);
@@ -611,16 +900,11 @@ describe('YamlConditionalFileWatcher', () => {
 });
 
 function mappedConditionMeta(
-  condition: Required<
-    Pick<RoleConditionalPolicyDecision<PermissionInfo>, 'permissionMapping'>
-  >,
+  condition: Required<Pick<RoleConditionalPolicyDecision, 'permissionMapping'>>,
 ): JsonObject {
   return {
     meta: {
-      condition: {
-        ...condition,
-        permissionMapping: condition.permissionMapping.map(pm => pm.action),
-      },
+      condition,
     },
   };
 }

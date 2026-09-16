@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 import AxeBuilder from '@axe-core/playwright';
-import { TestInfo, Page } from '@playwright/test';
+import { expect, TestInfo, Page } from '@playwright/test';
 
 export class Common {
   page: Page;
@@ -42,11 +42,17 @@ export class Common {
       body: JSON.stringify(accessibilityScanResults.violations, null, 2),
       contentType: 'application/json',
     });
+
+    expect(
+      accessibilityScanResults.violations,
+      `Accessibility check (${accessibilityScanResults.violations.length} violations)`,
+    ).toEqual([]);
   }
 
   async switchToLocale(locale: string): Promise<void> {
     if (locale !== 'en') {
-      const localeString = locale === 'ja' ? '日本語' : locale;
+      const names = new Intl.DisplayNames([locale], { type: 'language' });
+      const localeString = names.of(locale) || locale;
       await this.page.getByRole('button', { name: 'Language' }).click();
       await this.page.getByRole('menuitem', { name: localeString }).click();
     }

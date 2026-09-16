@@ -38,6 +38,7 @@ import {
   RoleMetadataStorage,
 } from '../database/role-metadata';
 import { BackstageRoleManager } from '../role-manager/role-manager';
+import { DefaultPermissionsReader } from '../default-permissions/default-permissions';
 import { EnforcerDelegate } from '../service/enforcer-delegate';
 import { MODEL } from '../service/permission-model';
 import { CSVFileWatcher } from './csv-file-watcher';
@@ -114,6 +115,9 @@ const roleMetadataStorageMock: RoleMetadataStorage = {
   createRoleMetadata: jest.fn().mockImplementation(),
   updateRoleMetadata: jest.fn().mockImplementation(),
   removeRoleMetadata: jest.fn().mockImplementation(),
+  getCachedDefaultRoleMetadata: jest.fn().mockImplementation(() => undefined),
+  getDefaultRole: jest.fn().mockResolvedValue(undefined),
+  syncDefaultRoleMetadata: jest.fn().mockResolvedValue(undefined),
 };
 
 const mockClientKnex = Knex.knex({ client: MockClient });
@@ -190,6 +194,28 @@ describe('CSVFileWatcher', () => {
   }
 
   describe('parse', () => {
+    test('should skip malformed CSV lines and log a warning', () => {
+      const malformedCsvPath = resolve(
+        __dirname,
+        '../../__fixtures__/data/invalid-csv/malformed-unquoted-quote.csv',
+      );
+      const csvFileWatcher = createCSVFileWatcher(malformedCsvPath);
+      const content = csvFileWatcher.parse();
+      expect(content).toStrictEqual([
+        ['g', 'user:default/alice', 'role:default/csv-malformed-test'],
+        [
+          'p',
+          'role:default/csv-malformed-test',
+          'catalog-entity',
+          'read',
+          'allow',
+        ],
+      ]);
+      expect(mockLoggerService.warn).toHaveBeenCalledWith(
+        expect.stringMatching(/Skipping invalid CSV policy line 2 in/),
+      );
+    });
+
     test('should parse users and groups in lowercase', async () => {
       csvFileName = resolve(
         __dirname,
@@ -798,6 +824,7 @@ async function createEnforcer(
     rbacDBClient,
     config,
     mockAuthService,
+    new DefaultPermissionsReader(config),
   );
   enf.setRoleManager(rm);
   enf.enableAutoBuildRoleLinks(false);

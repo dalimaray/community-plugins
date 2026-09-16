@@ -1,5 +1,88 @@
 # @backstage-community/plugin-jfrog-artifactory
 
+## 2.0.1
+
+### Patch Changes
+
+- 0a13163: Backstage version bump to v1.54.7
+
+## 2.0.0
+
+### Major Changes
+
+- d790949: The JFrog Artifactory plugin now uses the New Frontend System as its default export. The JFrog Artifactory entity tab is registered automatically for entities with the `jfrog-artifactory/image-name` annotation.
+
+  **BREAKING**: Legacy frontend apps must import `JfrogArtifactoryPage` and `jfrogArtifactoryPlugin` from `@backstage-community/plugin-jfrog-artifactory/legacy`.
+
+  The NFS translations module is exported from `/translations`. `jfrogArtifactoryTranslations` and `jfrogArtifactoryTranslationRef` remain available from both `/translations` and `/alpha`.
+
+### Patch Changes
+
+- 04cfb56: Updated dependency `@playwright/test` to `1.63.0`.
+
+## 1.31.1
+
+### Patch Changes
+
+- 7b25ecd: Updated dependency `@playwright/test` to `1.62.1`.
+
+## 1.31.0
+
+### Minor Changes
+
+- f21a634: Backstage version bump to v1.54.5
+
+## 1.30.2
+
+### Patch Changes
+
+- 010f9ce: Fetch all JFrog Artifactory tags up to the configured `pageLimit`, including when the result spans multiple API pages.
+
+## 1.30.1
+
+### Patch Changes
+
+- 6622075: Updated dependency `@playwright/test` to `1.61.1`.
+
+## 1.30.0
+
+### Minor Changes
+
+- 7485585: Backstage version bump to v1.51.0
+- ec5bab3: Backstage version bump to v1.52.0
+
+### Patch Changes
+
+- a938525: Migrated the JFrog Artifactory plugin UI from Material UI to Backstage UI (`@backstage/ui`). The repository table now uses BUI `Table`, `SearchField`, and pagination controls. Removed direct MUI dependencies; no breaking API changes.
+
+  Also fixed the filter input growing when typing, and added i18n support for pagination labels (page size selector and result range) in all supported locales.
+
+  **Note for consuming apps:** import `@backstage/ui/css/styles.css` in your app entry point if it is not already included.
+
+## 1.29.1
+
+### Patch Changes
+
+- 69b9fd3: Translations updated for de/es/fr/it/ja
+
+## 1.29.0
+
+### Minor Changes
+
+- d4b2527: Backstage version bump to v1.50.4
+
+## 1.28.0
+
+### Minor Changes
+
+- 27092f4: Backstage version bump to v1.49.2
+
+## 1.27.2
+
+### Patch Changes
+
+- da31305: Updated dependency `filesize` to `^11.0.0`.
+
 ## 1.27.1
 
 ### Patch Changes

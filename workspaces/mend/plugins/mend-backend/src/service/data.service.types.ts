@@ -36,23 +36,6 @@ type PathParams = {
   uuid: string;
 };
 
-export type GetOrganizationProjectRequestData = {
-  queryParams?: PaginationQueryParams;
-};
-
-export type OrganizationProjectSuccessResponseData = {
-  uuid: string;
-  name: string;
-  path: string;
-  applicationName: string;
-  applicationUuid: string;
-};
-
-export type GetOrganizationProjectSuccessResponseData = {
-  supportToken: string;
-  response: OrganizationProjectSuccessResponseData[];
-} & PaginationSuccessResponseData;
-
 export type GetProjectStatisticsRequestData = {
   queryParams?: PaginationQueryParams;
   bodyParams?: BodyParams;
@@ -159,17 +142,6 @@ export type GetProjectStatisticsSuccessResponseData = {
   response: ProjectStatisticsSuccessResponseData[];
 } & PaginationSuccessResponseData;
 
-export type EntityURL = {
-  path: string;
-  params: {
-    org?: string;
-    repo?: string;
-  };
-  namespace?: string;
-  kind: string;
-  source: string;
-};
-
 export enum StatisticsName {
   CRITICAL = 'critical',
   HIGH = 'high',
@@ -204,12 +176,11 @@ export type Project = {
   statistics: Statistics;
   uuid: string;
   name: string;
-  path: string;
   applicationName: string;
   applicationUuid: string;
   lastScan: number;
   languages: Array<[string, number]>;
-  entity: EntityURL;
+  entityUrl?: string;
 };
 
 // Code Finding API Data

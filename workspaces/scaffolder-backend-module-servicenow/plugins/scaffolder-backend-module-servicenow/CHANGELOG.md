@@ -1,5 +1,63 @@
 # @backstage-community/plugin-scaffolder-backend-module-servicenow
 
+## 2.17.0
+
+### Minor Changes
+
+- 69a21f0: Backstage version bump to v1.53.0
+- 4d7fbde: Backstage version bump to v1.54.5
+
+### Patch Changes
+
+- 813d384: ServiceNow Table API scaffolder actions now fall back to the HTTP status text (or a clear default) when the API error body omits `error.message`, so template failures surface a useful message instead of an empty error.
+
+  Added a contributor guide (`CONTRIBUTING.md`) and a local `dev/` harness so maintainers can smoke-test scaffolder action registration without a full workspace app. Expanded automated tests to cover module wiring, ServiceNow config fail-fast, shared MSW helpers with OpenAPI isolation, and representative API error paths.
+
+- a36cd39: Updated dependency `axios` to `^1.19.0`.
+
+## 2.16.1
+
+### Patch Changes
+
+- 53f1fff: Updated dependency `@hey-api/openapi-ts` to `0.99.0`.
+
+## 2.16.0
+
+### Minor Changes
+
+- 5e1ae58: Backstage version bump to v1.52.0
+
+## 2.15.2
+
+### Patch Changes
+
+- a4d0ef7: Updated dependency `@hey-api/openapi-ts` to `0.98.2`.
+
+## 2.15.1
+
+### Patch Changes
+
+- 85f6e69: Bump axios to 1.16.0 to include different security fixes.
+- 24acada: Updated dependency `@hey-api/openapi-ts` to `0.97.1`.
+- e9a32f2: Updated dependency `@hey-api/openapi-ts` to `0.95.0`.
+
+## 2.15.0
+
+### Minor Changes
+
+- 52cf205: Backstage version bump to v1.49.3
+
+## 2.14.0
+
+### Minor Changes
+
+- 68f9eb5: Backstage version bump to v1.48.4
+
+### Patch Changes
+
+- c7283a1: Updated dependency `@hey-api/openapi-ts` to `0.93.1`.
+- 9f0798f: Updated dependency `@hey-api/openapi-ts` to `0.92.4`.
+
 ## 2.13.0
 
 ### Minor Changes

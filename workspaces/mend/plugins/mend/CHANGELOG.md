@@ -1,5 +1,31 @@
 # @backstage-community/plugin-mend
 
+## 2.1.0
+
+### Minor Changes
+
+- 21f87b7: Backstage version bump to v1.52.0
+
+## 2.0.0
+
+### Major Changes
+
+- 7b0afd3: Updated the frontend plugin to align with the new annotation-based project mapping approach in the backend.
+  - Project IDs from the `mend.io/project-ids` annotation are now used as redirect values when navigating from the Project List to the Mend tab.
+  - Added `isMendProjectAvailable` helper to conditionally render the Mend tab only when the `mend.io/project-ids` annotation is present on the entity.
+
+## 1.1.1
+
+### Patch Changes
+
+- ba05827: Enhance Mapping Logic to support GitLab Subgroup Repository
+
+## 1.1.0
+
+### Minor Changes
+
+- 93f75d2: Backstage version bump to v1.48.2
+
 ## 1.0.0
 
 ### Major Changes

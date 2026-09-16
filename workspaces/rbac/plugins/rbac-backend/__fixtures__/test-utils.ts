@@ -31,16 +31,16 @@ import { CasbinDBAdapterFactory } from '../src/database/casbin-adapter-factory';
 import { RoleMetadataStorage } from '../src/database/role-metadata';
 import { RBACPermissionPolicy } from '../src/policies/permission-policy';
 import { BackstageRoleManager } from '../src/role-manager/role-manager';
+import { DefaultPermissionsReader } from '../src/default-permissions/default-permissions';
 import { EnforcerDelegate } from '../src/service/enforcer-delegate';
 import { MODEL } from '../src/service/permission-model';
-import { PluginPermissionMetadataCollector } from '../src/service/plugin-endpoints';
 import {
   mockAuditorService,
   conditionalStorageMock,
   csvPermFile,
   mockAuthService,
+  mockUserInfoService,
   mockClientKnex,
-  pluginMetadataCollectorMock,
   roleMetadataStorageMock,
 } from './mock-utils';
 import { clearAuditorMock } from './auditor-test-utils';
@@ -113,6 +113,7 @@ export async function createEnforcer(
     rbacDBClient,
     config,
     mockAuthService,
+    new DefaultPermissionsReader(config),
   );
   enf.setRoleManager(rm);
   enf.enableAutoBuildRoleLinks(false);
@@ -163,7 +164,7 @@ export async function newPermissionPolicy(
     enfDelegate,
     roleMock || roleMetadataStorageMock,
     mockClientKnex,
-    pluginMetadataCollectorMock as PluginPermissionMetadataCollector,
+    mockUserInfoService,
     mockAuthService,
   );
   clearAuditorMock();

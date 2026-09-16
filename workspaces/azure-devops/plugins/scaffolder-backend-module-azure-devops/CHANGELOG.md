@@ -1,5 +1,48 @@
 # @backstage-community/plugin-scaffolder-backend-module-azure-devops
 
+## 0.27.0
+
+### Minor Changes
+
+- 6c8035e: Backstage version bump to v1.54.5
+
+## 0.26.0
+
+### Minor Changes
+
+- 6213c8b: Backstage version bump to v1.53.0
+
+## 0.25.0
+
+### Minor Changes
+
+- 9f8f870: Backstage version bump to v1.51.0
+- 5b83efb: Backstage version bump to v1.52.0
+
+## 0.24.1
+
+### Patch Changes
+
+- 0036704: Removed logging of `templateParameters` when executing `azure:pipeline:run`
+
+## 0.24.0
+
+### Minor Changes
+
+- f2f1e66: Backstage version bump to v1.50.2
+
+## 0.23.0
+
+### Minor Changes
+
+- 7c1dfa3: Backstage version bump to v1.49.2
+
+### Patch Changes
+
+- c6820af: Fixed `azure:pipeline:permit` action to use absolute URL in the Pipeline Permissions API request, resolving ECONNREFUSED errors caused by `HttpClient.patch()` resolving relative URLs to `localhost:80`.
+
+  Fixed `azure:pipeline:permit` action to automatically resolve compound `{projectId}.{repositoryId}` format for repository resource types, as required by the Azure DevOps Pipeline Permissions API.
+
 ## 0.22.1
 
 ### Patch Changes

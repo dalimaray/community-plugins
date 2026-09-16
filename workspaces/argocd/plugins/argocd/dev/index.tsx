@@ -1,5 +1,5 @@
 /*
- * Copyright 2024 The Backstage Authors
+ * Copyright 2026 The Backstage Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,276 +13,228 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// eslint-disable-next-line
+
+/**
+ * New Frontend System dev mode for the Argo CD plugin.
+ * Argo CD and Kubernetes APIs are mocked; permissions are mocked locally so
+ * extension `if` predicates work without calling the dev backend.
+ */
+
+import '@backstage/cli/asset-types';
+// eslint-disable-next-line @backstage/no-ui-css-imports-in-non-frontend
 import '@backstage/ui/css/styles.css';
-import { Entity } from '@backstage/catalog-model';
-import { ConfigReader } from '@backstage/config';
-import { configApiRef } from '@backstage/core-plugin-api';
-import { Page, Header, TabbedLayout } from '@backstage/core-components';
-import { createDevApp } from '@backstage/dev-utils';
-import { EntityProvider } from '@backstage/plugin-catalog-react';
+
+import ReactDOM from 'react-dom/client';
+
+import { createApp } from '@backstage/frontend-defaults';
+import { SignInPage } from '@backstage/core-components';
 import {
-  KubernetesApi,
+  ApiBlueprint,
+  createFrontendModule,
+  createFrontendPlugin,
+} from '@backstage/frontend-plugin-api';
+import { SignInPageBlueprint } from '@backstage/plugin-app-react';
+import { catalogApiRef } from '@backstage/plugin-catalog-react';
+import { catalogApiMock } from '@backstage/plugin-catalog-react/testUtils';
+import catalogPlugin from '@backstage/plugin-catalog/alpha';
+import { AuthorizeResult } from '@backstage/plugin-permission-common';
+import { permissionApiRef } from '@backstage/plugin-permission-react';
+import userSettingsPlugin from '@backstage/plugin-user-settings/alpha';
+
+import {
   kubernetesApiRef,
   kubernetesAuthProvidersApiRef,
 } from '@backstage/plugin-kubernetes-react';
-import { permissionApiRef } from '@backstage/plugin-permission-react';
-import { mockApis, TestApiProvider } from '@backstage/test-utils';
 
-import { Box } from '@material-ui/core';
-
-import {
-  ArgoCDApi,
-  argoCDApiRef,
-  ArgoCDInstanceApi,
-  argoCDInstanceApiRef,
-  FindApplicationsOptions,
-  GetApplicationOptions,
-  ListAppsOptions,
-  RevisionDetailsListOptions,
-  RevisionDetailsOptions,
-  SearchApplicationsOptions,
-} from '../src/api';
-import {
-  ArgocdDeploymentLifecycle,
-  ArgocdDeploymentSummary,
-  argocdPlugin,
-} from '../src/plugin';
-import { Application } from '@backstage-community/plugin-argocd-common';
-import { customResourceTypes } from '../src/types/resources';
-import {
-  mockApplication,
-  mockArgocdConfig,
-  mockQuarkusApplication,
-  mockRevision,
-  mockRevisions,
-  preProdApplication,
-  prodApplication,
-} from './__data__';
 import { mockArgoResources } from './__data__/argoRolloutsObjects';
-import { argocdTranslations } from '../src/translations';
+import {
+  MockArgoCDApiClient,
+  MockKubernetesClient,
+  mockKubernetesAuthProviderApi,
+} from './__fixtures__/mockClients';
 
-const mockEntity: Entity = {
-  apiVersion: 'backstage.io/v1alpha1',
-  kind: 'Component',
-  metadata: {
-    name: 'backstage-argocd',
-    description: 'rhtap argocd plugin',
-    annotations: {
-      'argocd/app-selector': 'rht.gitops.com/quarks-app-bootstrap',
-      'backstage.io/kubernetes-id': 'quarkus-app',
-    },
-  },
-  spec: {
-    lifecycle: 'production',
-    type: 'service',
-    owner: 'user:guest',
+import {
+  argoCDApiRef,
+  ArgoCDInstanceApiClient,
+  argoCDInstanceApiRef,
+} from '../src/api';
+import argocdPlugin from '../src/plugin';
+import argocdTranslationsModule from '../src/translations';
+import {
+  mockArgocdConfig,
+  mockArgocdMultiInstanceConfig,
+  mockEntity,
+  mockArgoMultiInstanceSelectorEntity,
+  mockArgoMultiInstanceAppNameEntity,
+  mockArgoOneAppEntity,
+} from './__data__';
+import { getArgocdInstances } from '../src/hooks/useArgocdConfig';
+import { ConfigReader } from '@backstage/config';
+
+const combinedArgocdConfig = {
+  argocd: {
+    ...mockArgocdConfig.argocd,
+    appLocatorMethods: [
+      {
+        type: 'config',
+        instances: [
+          ...mockArgocdConfig.argocd.appLocatorMethods[0].instances,
+          ...mockArgocdMultiInstanceConfig.argocd.appLocatorMethods[0]
+            .instances,
+        ],
+      },
+    ],
   },
 };
 
-export class MockArgoCDApiClient implements ArgoCDApi {
-  async listApps(_options: ListAppsOptions): Promise<any> {
-    return {
-      items: [
-        mockApplication,
-        preProdApplication,
-        prodApplication,
-        mockQuarkusApplication,
-      ],
-    };
-  }
+const configApi = new ConfigReader(combinedArgocdConfig);
+const mockArgoCDApi = new MockArgoCDApiClient();
 
-  async getRevisionDetails(_options: RevisionDetailsOptions): Promise<any> {
-    return mockRevision;
-  }
-  async getRevisionDetailsList(
-    _options: RevisionDetailsListOptions,
-  ): Promise<any> {
-    return mockRevisions;
-  }
-  async getApplication(_options: GetApplicationOptions): Promise<Application> {
-    return mockApplication;
-  }
-
-  async findApplications(_options: FindApplicationsOptions): Promise<any> {
-    return {
-      items: [
-        mockApplication,
-        preProdApplication,
-        prodApplication,
-        mockQuarkusApplication,
-      ],
-    };
-  }
-}
-
-class MockArgoCDInstanceApiClient implements ArgoCDInstanceApi {
-  async searchApplications(
-    _instanceNames: string[],
-    _options: SearchApplicationsOptions,
-  ): Promise<Application[]> {
-    return [
-      mockApplication,
-      preProdApplication,
-      prodApplication,
-      mockQuarkusApplication,
-    ];
-  }
-}
-
-const mockKubernetesAuthProviderApiRef = {
-  decorateRequestBodyForAuth: async () => {
-    return {
-      entity: {
-        apiVersion: 'v1',
-        kind: 'xyz',
-        metadata: { name: 'hey' },
-      },
-    };
+const signInPage = SignInPageBlueprint.make({
+  params: {
+    loader: async () => props =>
+      (
+        <SignInPage
+          {...props}
+          title="Select a sign-in method"
+          align="center"
+          providers={['guest']}
+        />
+      ),
   },
-  getCredentials: async () => {
-    return {};
-  },
-};
+});
 
-class MockKubernetesClient implements KubernetesApi {
-  readonly resources;
+const devNavModule = createFrontendModule({
+  pluginId: 'app',
+  extensions: [
+    signInPage,
+    ApiBlueprint.make({
+      name: 'permission',
+      params: defineParams =>
+        defineParams({
+          api: permissionApiRef,
+          deps: {},
+          factory: () => ({
+            authorize: async () => ({
+              result: window.location.pathname.includes('permission-denied')
+                ? AuthorizeResult.DENY
+                : AuthorizeResult.ALLOW,
+            }),
+          }),
+        }),
+    }),
+  ],
+});
 
-  constructor(fixtureData: { [resourceType: string]: any[] }) {
-    this.resources = Object.entries(fixtureData).flatMap(
-      ([type, resources]) => {
-        if (
-          customResourceTypes.map(t => t.toLocaleLowerCase()).includes(type)
-        ) {
-          return {
-            type: 'customresources',
-            resources,
-          };
-        }
-        return {
-          type: type.toLocaleLowerCase('en-US'),
-          resources,
-        };
-      },
-    );
-  }
+const argocdDevModule = createFrontendModule({
+  pluginId: 'backstage-community-argocd',
+  extensions: [
+    ApiBlueprint.make({
+      name: 'argocd-mock',
+      params: defineParams =>
+        defineParams({
+          api: argoCDApiRef,
+          deps: {},
+          factory: () => mockArgoCDApi,
+        }),
+    }),
+    ApiBlueprint.make({
+      name: 'argocd-instance-mock',
+      params: defineParams =>
+        defineParams({
+          api: argoCDInstanceApiRef,
+          deps: {},
+          factory: () =>
+            new ArgoCDInstanceApiClient({
+              argoCDApi: mockArgoCDApi,
+              instances: getArgocdInstances(configApi),
+            }),
+        }),
+    }),
+  ],
+});
 
-  async getWorkloadsByEntity(_request: any): Promise<any> {
-    return {
-      items: [
-        {
-          cluster: { name: 'mock-cluster' },
-          resources: this.resources,
-          podMetrics: [],
-          errors: [],
-        },
-      ],
-    };
-  }
-  async getCustomObjectsByEntity(_request: any): Promise<any> {
-    return {
-      items: [
-        {
-          cluster: { name: 'mock-cluster' },
-          resources: this.resources,
-          podMetrics: [],
-          errors: [],
-        },
-      ],
-    };
-  }
+const kubernetesStubPlugin = createFrontendPlugin({
+  pluginId: 'kubernetes',
+  extensions: [],
+});
 
-  async getObjectsByEntity(): Promise<any> {
-    return {
-      items: [
-        {
-          cluster: { name: 'mock-cluster' },
-          resources: this.resources,
-          podMetrics: [],
-          errors: [],
-        },
-      ],
-    };
-  }
+const kubernetesDevModule = createFrontendModule({
+  pluginId: 'kubernetes',
+  extensions: [
+    ApiBlueprint.make({
+      name: 'kubernetes-mock',
+      params: defineParams =>
+        defineParams({
+          api: kubernetesApiRef,
+          deps: {},
+          factory: () => new MockKubernetesClient(mockArgoResources),
+        }),
+    }),
+  ],
+});
 
-  async getClusters(): Promise<{ name: string; authProvider: string }[]> {
-    return [{ name: 'mock-cluster', authProvider: 'serviceAccount' }];
-  }
+const kubernetesAuthStubPlugin = createFrontendPlugin({
+  pluginId: 'kubernetes-auth-providers',
+  extensions: [],
+});
 
-  async getCluster(_clusterName: string): Promise<
-    | {
-        name: string;
-        authProvider: string;
-        oidcTokenProvider?: string;
-        dashboardUrl?: string;
-      }
-    | undefined
-  > {
-    return { name: 'mock-cluster', authProvider: 'serviceAccount' };
-  }
+const kubernetesAuthDevModule = createFrontendModule({
+  pluginId: 'kubernetes-auth-providers',
+  extensions: [
+    ApiBlueprint.make({
+      name: 'kubernetes-auth-mock',
+      params: defineParams =>
+        defineParams({
+          api: kubernetesAuthProvidersApiRef,
+          deps: {},
+          factory: () => mockKubernetesAuthProviderApi,
+        }),
+    }),
+  ],
+});
 
-  async proxy(_options: { clusterName: String; path: String }): Promise<any> {
-    return {
-      kind: 'Namespace',
-      apiVersion: 'v1',
-      metadata: {
-        name: 'mock-ns',
-      },
-    };
-  }
+const catalogDevModule = createFrontendModule({
+  pluginId: 'catalog',
+  extensions: [
+    ApiBlueprint.make({
+      name: 'catalog-mock',
+      params: defineParams =>
+        defineParams({
+          api: catalogApiRef,
+          deps: {},
+          factory: () =>
+            catalogApiMock({
+              entities: [
+                mockEntity,
+                mockArgoMultiInstanceSelectorEntity,
+                mockArgoMultiInstanceAppNameEntity,
+                mockArgoOneAppEntity,
+              ],
+            }),
+        }),
+    }),
+  ],
+});
+
+const app = createApp({
+  features: [
+    devNavModule,
+    catalogPlugin,
+    userSettingsPlugin,
+    argocdPlugin,
+    argocdTranslationsModule,
+    argocdDevModule,
+    catalogDevModule,
+    kubernetesStubPlugin,
+    kubernetesDevModule,
+    kubernetesAuthStubPlugin,
+    kubernetesAuthDevModule,
+  ],
+});
+
+if (window.location.pathname === '/') {
+  window.location.replace('/catalog');
 }
 
-createDevApp()
-  .registerPlugin(argocdPlugin)
-  .setAvailableLanguages(['en', 'de', 'es', 'fr', 'it', 'ja'])
-  .addTranslationResource(argocdTranslations)
-  .addPage({
-    element: (
-      <TestApiProvider
-        apis={[
-          [kubernetesApiRef, new MockKubernetesClient(mockArgoResources)],
-          [configApiRef, new ConfigReader(mockArgocdConfig)],
-          [argoCDApiRef, new MockArgoCDApiClient()],
-          [argoCDInstanceApiRef, new MockArgoCDInstanceApiClient()],
-          [permissionApiRef, mockApis.permission()],
-          [kubernetesAuthProvidersApiRef, mockKubernetesAuthProviderApiRef],
-        ]}
-      >
-        <EntityProvider entity={mockEntity}>
-          <Box margin={2}>
-            <ArgocdDeploymentLifecycle />
-          </Box>
-        </EntityProvider>
-      </TestApiProvider>
-    ),
-    title: 'Lifecycle',
-    path: '/argocd/deployment-lifecycle',
-  })
-
-  .addPage({
-    element: (
-      <TestApiProvider
-        apis={[
-          [configApiRef, new ConfigReader(mockArgocdConfig)],
-          [argoCDApiRef, new MockArgoCDApiClient()],
-          [argoCDInstanceApiRef, new MockArgoCDInstanceApiClient()],
-          [permissionApiRef, mockApis.permission()],
-          [kubernetesAuthProvidersApiRef, mockKubernetesAuthProviderApiRef],
-        ]}
-      >
-        <EntityProvider entity={mockEntity}>
-          <Page themeId="service">
-            <Header type="component — service" title="quarkus-app" />
-            <TabbedLayout>
-              <TabbedLayout.Route path="/" title="CI/CD">
-                <ArgocdDeploymentSummary />
-              </TabbedLayout.Route>
-            </TabbedLayout>
-          </Page>
-        </EntityProvider>
-      </TestApiProvider>
-    ),
-    title: 'Summary',
-    path: 'argocd/deployment-summary',
-  })
-  .render();
+ReactDOM.createRoot(document.getElementById('root')!).render(app.createRoot());

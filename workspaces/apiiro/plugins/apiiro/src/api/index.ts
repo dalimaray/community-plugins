@@ -15,6 +15,7 @@
  */
 import { QueryClient } from '@tanstack/react-query';
 import {
+  ApiRef,
   ConfigApi,
   createApiRef,
   DiscoveryApi,
@@ -26,9 +27,11 @@ import {
 export type ApiiroApi = {
   discoveryApi: DiscoveryApi;
   getDefaultAllowMetricsView: () => boolean;
+  getEnableApplicationsView: () => boolean;
+  getRedirectDevView: () => boolean;
 };
 
-export const apiiroApiRef = createApiRef<ApiiroApi>({
+export const apiiroApiRef: ApiRef<ApiiroApi> = createApiRef<ApiiroApi>({
   id: 'plugin.apiiro.service',
 });
 
@@ -46,6 +49,17 @@ export class ApiiroClient implements ApiiroApi {
       this.configApi.getOptionalBoolean('apiiro.defaultAllowMetricsView') ??
       true
     );
+  }
+
+  getEnableApplicationsView(): boolean {
+    return (
+      this.configApi.getOptionalBoolean('apiiro.enableApplicationsView') ??
+      false
+    );
+  }
+
+  getRedirectDevView(): boolean {
+    return this.configApi.getOptionalBoolean('apiiro.redirectDevView') ?? false;
   }
 }
 

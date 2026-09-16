@@ -70,6 +70,12 @@ workspace/blackduck:
 workspace/bookmarks:
   - "Workspace\\s*bookmarks"
 
+workspace/catalog:
+  - "Workspace\\s*catalog"
+
+workspace/checkmarx:
+  - "Workspace\\s*checkmarx"
+
 workspace/cicd-statistics:
   - "Workspace\\s*cicd-statistics"
 
@@ -105,6 +111,9 @@ workspace/entity-validation:
 
 workspace/explore:
   - "Workspace\\s*explore"
+
+workspace/fairwinds-insights:
+  - "Workspace\\s*fairwinds-insights"
 
 workspace/feedback:
   - "Workspace\\s*feedback"
@@ -144,6 +153,9 @@ workspace/graphiql:
 
 workspace/graphql-voyager:
   - "Workspace\\s*graphql-voyager"
+
+workspace/growthbook-flags:
+  - "Workspace\\s*growthbook-flags"
 
 workspace/ilert:
   - "Workspace\\s*ilert"
@@ -192,6 +204,9 @@ workspace/mta:
 
 workspace/multi-source-security-viewer:
   - "Workspace\\s*multi-source-security-viewer"
+
+workspace/n8n:
+  - "Workspace\\s*n8n"
 
 workspace/newrelic:
   - "Workspace\\s*newrelic"

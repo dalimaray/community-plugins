@@ -1,5 +1,82 @@
 # @backstage-community/plugin-analytics-module-matomo
 
+## 1.31.0
+
+### Minor Changes
+
+- 70ce2a9: Backstage version bump to v1.54.5
+
+## 1.30.0
+
+### Minor Changes
+
+- bb6da15: Backstage version bump to v1.52.0
+
+## 1.29.0
+
+### Minor Changes
+
+- 2a80868: Backstage version bump to v1.51.0
+
+## 1.28.2
+
+### Patch Changes
+
+- f3dcef4: Register the Matomo analytics API factory in the plugin object so it auto-registers when the plugin loads
+- f3dcef4: Added support for Backstage's New Frontend System.
+
+  If you're migrating to the new frontend system, you no longer need to wire up an API implementation in `apis.ts`. Instead, pass the plugin in to the `createApp()` function:
+
+  ```tsx
+  import analyticsProviderMatomoPlugin from '@backstage-community/plugin-analytics-module-matomo/alpha';
+
+  const app = createApp({
+    features: [analyticsProviderMatomoPlugin],
+  });
+  ```
+
+  This can be skipped if you have feature discovery enabled.
+
+## 1.28.1
+
+### Patch Changes
+
+- 170f85d: Migrate to Jest 30
+
+## 1.28.0
+
+### Minor Changes
+
+- 3fee6eb: Backstage version bump to v1.50.3
+
+## 1.27.0
+
+### Minor Changes
+
+- a34e621: Migrate `AnalyticsImplementationBlueprint` from `@backstage/frontend-plugin-api` to `@backstage/plugin-app-react`.
+
+## 1.26.0
+
+### Minor Changes
+
+- 4fca047: Backstage version bump to v1.49.2
+
+## 1.25.1
+
+### Patch Changes
+
+- 6ac83bc: Remove unused dev dependencies for @types/node and msw
+
+## 1.25.0
+
+### Minor Changes
+
+- 616b66c: Backstage version bump to v1.48.2
+
+### Patch Changes
+
+- 497d5c6: Updated dependency `@types/node` to `22.19.11`.
+
 ## 1.24.0
 
 ### Minor Changes

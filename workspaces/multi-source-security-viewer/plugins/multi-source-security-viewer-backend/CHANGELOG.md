@@ -1,5 +1,76 @@
 # @backstage-community/plugin-multi-source-security-viewer-backend
 
+## 0.7.0
+
+### Minor Changes
+
+- 26c86ca: Backstage version bump to v1.52.0
+- e716897: Backstage version bump to v1.54.5
+
+### Patch Changes
+
+- Updated dependencies [26c86ca]
+- Updated dependencies [e716897]
+  - @backstage-community/plugin-multi-source-security-viewer-common@0.16.0
+
+## 0.6.0
+
+### Minor Changes
+
+- 6a61be0: Backstage version bump to v1.51.0
+
+### Patch Changes
+
+- Updated dependencies [6a61be0]
+  - @backstage-community/plugin-multi-source-security-viewer-common@0.15.0
+
+## 0.5.0
+
+### Minor Changes
+
+- 7d45b9d: Backstage version bump to v1.50.4
+
+### Patch Changes
+
+- Updated dependencies [7d45b9d]
+  - @backstage-community/plugin-multi-source-security-viewer-common@0.14.0
+
+## 0.4.1
+
+### Patch Changes
+
+- c120454: Updated dependency `@types/supertest` to `^7.0.0`.
+
+## 0.4.0
+
+### Minor Changes
+
+- 179f726: Backstage version bump to v1.49.2
+
+### Patch Changes
+
+- Updated dependencies [179f726]
+  - @backstage-community/plugin-multi-source-security-viewer-common@0.13.0
+
+## 0.3.1
+
+### Patch Changes
+
+- a7cbd3f: Backstage version bump to v1.48.5
+- Updated dependencies [a7cbd3f]
+  - @backstage-community/plugin-multi-source-security-viewer-common@0.12.1
+
+## 0.3.0
+
+### Minor Changes
+
+- d9a66c5: Backstage version bump to v1.48.4
+
+### Patch Changes
+
+- Updated dependencies [d9a66c5]
+  - @backstage-community/plugin-multi-source-security-viewer-common@0.12.0
+
 ## 0.2.3
 
 ### Patch Changes

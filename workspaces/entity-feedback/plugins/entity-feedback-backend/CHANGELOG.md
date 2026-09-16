@@ -1,5 +1,83 @@
 # @backstage-community/plugin-entity-feedback-backend
 
+## 0.24.0
+
+### Minor Changes
+
+- c901d96: Backstage version bump to v1.54.5
+
+### Patch Changes
+
+- Updated dependencies [c901d96]
+  - @backstage-community/plugin-entity-feedback-common@0.20.0
+
+## 0.23.1
+
+### Patch Changes
+
+- 0710885: Fixed a bug where casting a vote and quickly changing it (e.g. clicking Like then immediately clicking Dislike) could double-count both ratings instead of replacing the earlier one with the later one, when both writes landed within the same second.
+
+## 0.23.0
+
+### Minor Changes
+
+- b6d88b4: Backstage version bump to v1.53.0
+
+### Patch Changes
+
+- Updated dependencies [b6d88b4]
+  - @backstage-community/plugin-entity-feedback-common@0.19.0
+
+## 0.22.0
+
+### Minor Changes
+
+- 52e455f: Backstage version bump to v1.52.0
+
+### Patch Changes
+
+- Updated dependencies [52e455f]
+  - @backstage-community/plugin-entity-feedback-common@0.18.0
+
+## 0.21.0
+
+### Minor Changes
+
+- c946411: Backstage version bump to v1.51.0
+
+### Patch Changes
+
+- Updated dependencies [c946411]
+  - @backstage-community/plugin-entity-feedback-common@0.17.0
+
+## 0.20.1
+
+### Patch Changes
+
+- c120454: Updated dependency `@types/supertest` to `^7.0.0`.
+
+## 0.20.0
+
+### Minor Changes
+
+- bfce61f: Backstage version bump to v1.50.2
+
+### Patch Changes
+
+- Updated dependencies [bfce61f]
+  - @backstage-community/plugin-entity-feedback-common@0.16.0
+
+## 0.19.0
+
+### Minor Changes
+
+- 8cb1076: Backstage version bump to v1.49.2
+
+### Patch Changes
+
+- Updated dependencies [8cb1076]
+  - @backstage-community/plugin-entity-feedback-common@0.15.0
+
 ## 0.18.0
 
 ### Minor Changes
@@ -19,6 +97,7 @@
 
 ### Patch Changes
 
+- c92a717: Add clickable link to feedback notifications. When entity owners receive notifications about new feedback, the notification now includes a link to navigate directly to the entity page. The entity URL is derived from the frontend routing configuration using the same logic as `EntityRefLink`, ensuring it always matches the actual routes configured in the app without requiring additional backend configuration.
 - Updated dependencies [227f90a]
   - @backstage-community/plugin-entity-feedback-common@0.13.0
 

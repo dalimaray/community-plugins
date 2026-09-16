@@ -29,12 +29,15 @@ const rbacTranslationEs = createTranslationMessages({
     'page.editRole': 'Modificar rol',
     'table.searchPlaceholder': 'Filtrar',
     'table.labelRowsSelect': 'Filas',
+    'table.labelDisplayedRows': '{from}-{to} de {count}',
+    'table.labelRowsPerPage': 'Filas por página:',
     'table.title': 'Todos los roles',
     'table.titleWithCount': 'Todos los roles ({{count}})',
     'table.headers.name': 'Nombre',
     'table.headers.usersAndGroups': 'Usuarios y grupos',
     'table.headers.accessiblePlugins': 'Complementos accesibles',
     'table.headers.actions': 'Acciones',
+    'table.defaultRoleUsersAndGroups': 'Todos los usuarios y todos los grupos',
     'table.emptyContent': 'No se encontraron registros',
     'toolbar.createButton': 'Crear',
     'toolbar.warning.title': 'No se puede crear el rol.',
@@ -66,6 +69,7 @@ const rbacTranslationEs = createTranslationMessages({
     'errors.createRole': 'No se puede crear el rol.',
     'errors.editRole': 'No se puede modificar el rol.',
     'errors.deleteRole': 'No se puede eliminar el rol.',
+    'errors.defaultRoleReadOnly': 'El rol predeterminado es de solo lectura.',
     'errors.roleCreatedSuccess':
       'El rol se creó correctamente, pero no se pueden agregar políticas de permisos a él.',
     'errors.roleCreatedConditionsSuccess':
@@ -73,7 +77,7 @@ const rbacTranslationEs = createTranslationMessages({
     'roleForm.titles.createRole': 'Crear rol',
     'roleForm.titles.editRole': 'Modificar rol',
     'roleForm.titles.nameAndDescription':
-      'Ingresar el nombre y la descripción del rol',
+      'Ingresar el nombre, la descripción y el propietario del rol',
     'roleForm.titles.usersAndGroups': 'Agregar usuarios y grupos',
     'roleForm.titles.permissionPolicies': 'Agregar políticas de permisos',
     'roleForm.review.reviewAndCreate': 'Revisar y crear',
@@ -92,7 +96,7 @@ const rbacTranslationEs = createTranslationMessages({
     'roleForm.fields.name.helperText': 'Ingresar el nombre del rol',
     'roleForm.fields.description.label': 'Descripción',
     'roleForm.fields.description.helperText':
-      'Ingrese una breve descripción sobre el rol (el propósito del rol)',
+      'Opcional: Ingrese una breve descripción sobre el rol (el propósito del rol)',
     'roleForm.fields.owner.label': 'Propietario',
     'roleForm.fields.owner.helperText':
       'Opcional: Ingrese un usuario o grupo que tenga permiso para modificar este rol y crear roles adicionales. En el siguiente paso, especifique a qué usuarios pueden asignar sus roles y a qué complementos pueden conceder acceso. Si se deja en blanco, se asigna automáticamente el autor en el momento de la creación.',
@@ -227,6 +231,7 @@ const rbacTranslationEs = createTranslationMessages({
     'common.configureAccessFor': 'Configurar acceso para',
     'common.defaultResourceTypeVisible':
       'De forma predeterminada, todos los usuarios agregados pueden visualizar el tipo de recurso seleccionado. Si desea restringir u otorgar permiso a reglas de complementos específicas, selecciónelas y agregue los parámetros.',
+    'common.tableAction': 'Acción de tabla',
   },
 });
 

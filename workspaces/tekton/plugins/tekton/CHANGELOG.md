@@ -1,5 +1,131 @@
 # @backstage-community/plugin-tekton
 
+## 4.0.2
+
+### Patch Changes
+
+- 8ff1dd1: Added an extension `if` predicate so the Tekton entity tab is only shown when the user is authorized for `kubernetes.clusters.read` and `kubernetes.resources.read`.
+- d0f4c91: Backstage version bump to v1.54.7
+- Updated dependencies [8ff1dd1]
+- Updated dependencies [d0f4c91]
+  - @backstage-community/plugin-tekton-common@1.24.1
+  - @backstage-community/plugin-tekton-react@0.9.1
+
+## 4.0.1
+
+### Patch Changes
+
+- 842669b: Added missing translation for "unknown" vulnerability severity
+
+## 4.0.0
+
+### Major Changes
+
+- 929477e: **Breaking:** The new frontend system (NFS) plugin is now the default export. The `/alpha` subpath no longer exports the NFS plugin — it now re-exports only translations. Legacy frontend system APIs moved to `/legacy`.
+
+  **If you use the new frontend system**, import the plugin from the package root instead of `/alpha`.
+
+  **If you use the legacy frontend system**, update imports of `TektonCI`, `tektonPlugin`, and `isTektonCIAvailable` to the `/legacy` subpath.
+
+  **If you use RHDH / dynamic plugins (scalprum)**, the `TektonCI` component and `tektonTranslations` resource are now exposed under the `Legacy` module.
+
+  Translations are now available from `/translations` and `/alpha`.
+
+### Minor Changes
+
+- 77c4615: Backstage version bump to v1.54.5
+  Added New Frontend System development entrypoints and e2e coverage for both NFS and legacy.
+
+### Patch Changes
+
+- 5611e85: Updated dependency `react-router-dom` to `^6.30.5`.
+- Updated dependencies [77c4615]
+  - @backstage-community/plugin-tekton-common@1.24.0
+  - @backstage-community/plugin-tekton-react@0.9.0
+
+## 3.41.1
+
+### Patch Changes
+
+- f805ea0: Added spacing to the pipeline run log viewer dialog between the task sidebar and log content area
+- 4b8f04b: Hide the CI/CD tab on entity pages when the tekton annotation is not present
+
+## 3.41.0
+
+### Minor Changes
+
+- 087a229: Add NFS translations module with default export for `packages: all` discovery
+
+## 3.40.1
+
+### Patch Changes
+
+- be57967: Fixed WCAG accessibility violations: added accessible names to icon buttons and expand/collapse controls, resolved nested interactive control in SBOM link, added keyboard-accessible scrollable dialog content, fixed pagination select label, improved dialog title text contrast, and enabled assertion of zero violations in e2e accessibility scan.
+
+## 3.40.0
+
+### Minor Changes
+
+- 3ad9785: Backstage version bump to v1.52.0
+
+### Patch Changes
+
+- 9ec30ec: Migrated the Tekton plugin UI from Material UI v4 (`@material-ui/*`) to MUI v5 (`@mui/*`). Replaced `makeStyles`/`withStyles` usage with `sx` prop styling and added `TektonStylesProvider` with a class name seed to avoid CSS collisions with the host app. No breaking API changes.
+- 6622075: Updated dependency `@playwright/test` to `1.61.1`.
+- 0aa5613: Replaced legacy `@mui/styles` `StylesProvider` with Emotion `CacheProvider` in `TektonStylesProvider` to scope sx/styled class names and avoid CSS collisions with the host app. Removed the `@mui/styles` and unused `@mui/lab` dependencies in favor of `@emotion/cache` and `@emotion/react`. Fixed the pipeline run output dialog layout so expanded output sections scroll inside the dialog instead of overflowing its border. Declared `mobx-react` as a direct dependency for pipeline topology components. No breaking API changes.
+- Updated dependencies [3ad9785]
+  - @backstage-community/plugin-tekton-common@1.23.0
+  - @backstage-community/plugin-tekton-react@0.8.0
+
+## 3.39.0
+
+### Minor Changes
+
+- bbdacfc: Backstage version bump to v1.51.0
+
+### Patch Changes
+
+- Updated dependencies [bbdacfc]
+  - @backstage-community/plugin-tekton-common@1.22.0
+  - @backstage-community/plugin-tekton-react@0.7.0
+
+## 3.38.0
+
+### Minor Changes
+
+- 91220cb: Backstage version bump to v1.50.4
+
+### Patch Changes
+
+- Updated dependencies [91220cb]
+  - @backstage-community/plugin-tekton-common@1.21.0
+  - @backstage-community/plugin-tekton-react@0.6.0
+
+## 3.37.0
+
+### Minor Changes
+
+- 701b9e7: Backstage version bump to v1.49.2
+
+### Patch Changes
+
+- 92e7fe8: Fix horizontal bar stylings so they render properly.
+- Updated dependencies [701b9e7]
+  - @backstage-community/plugin-tekton-common@1.20.0
+  - @backstage-community/plugin-tekton-react@0.5.0
+
+## 3.36.1
+
+### Patch Changes
+
+- 0467b33: Updated dependency `@testing-library/react` to `^16.0.0`.
+  Updated dependency `@testing-library/dom` to `10.4.1`.
+  Updated dependency `@testing-library/jest-dom` to `^6.0.0`.
+- f5dd5e1: Backstage version bump to v1.48.5
+- Updated dependencies [f5dd5e1]
+  - @backstage-community/plugin-tekton-common@1.19.1
+  - @backstage-community/plugin-tekton-react@0.4.1
+
 ## 3.36.0
 
 ### Minor Changes

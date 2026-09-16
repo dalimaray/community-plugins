@@ -15,6 +15,11 @@
  */
 import { expect, type Page } from '@playwright/test';
 
+/** Matches APP_MODE in playwright.config.ts / package.json e2e scripts. */
+export function isAlphaAppMode(): boolean {
+  return process.env.APP_MODE === 'alpha';
+}
+
 export const verifyCellsInTable = async (
   cellIdentifier: (string | RegExp)[],
   page: Page,
@@ -81,14 +86,18 @@ export class Common {
       await dialog.accept();
     });
 
-    await expect(this.page.getByText('Enter as a Guest User.')).toBeVisible();
-    await this.clickButton('Enter');
+    const enterButton = this.page.getByRole('button', { name: 'Enter' });
+    if (!isAlphaAppMode()) {
+      await expect(this.page.getByText('Enter as a Guest User.')).toBeVisible();
+    }
+    await enterButton.click();
     await this.waitForSideBarVisible();
   }
 
   async switchToLocale(locale: string): Promise<void> {
     if (locale !== 'en') {
-      const localeString = locale === 'ja' ? '日本語' : locale;
+      const names = new Intl.DisplayNames([locale], { type: 'language' });
+      const localeString = names.of(locale) || locale;
       await this.page.getByRole('button', { name: 'Language' }).click();
       await this.page.getByRole('menuitem', { name: localeString }).click();
     }

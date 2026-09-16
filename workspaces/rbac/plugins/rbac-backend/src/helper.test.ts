@@ -13,7 +13,11 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import { RoleMetadata } from '@backstage-community/plugin-rbac-common';
+import {
+  PermissionAction,
+  RoleMetadata,
+} from '@backstage-community/plugin-rbac-common';
+import { AuthorizeResult } from '@backstage/plugin-permission-common';
 import { clearAuditorMock } from '../__fixtures__/auditor-test-utils';
 import { mockAuditorService } from '../__fixtures__/mock-utils';
 import { ADMIN_ROLE_AUTHOR } from './admin-permissions/admin-creation';
@@ -27,6 +31,11 @@ import {
   policiesToString,
   policyToString,
   removeTheDifference,
+  syncRolePolicies,
+  conditionalActionsOverlap,
+  planConditionalReconcile,
+  pendingDeleteIdsFromPlan,
+  toError,
   transformArrayToPolicy,
   transformPolicyGroupToLowercase,
   transformRolesGroupToLowercase,
@@ -121,6 +130,178 @@ describe('helper.ts', () => {
       const policy = '[user:default/some-user, role:default/dev]';
       const expectedPolicy = ['user:default/some-user', 'role:default/dev'];
       expect(metadataStringToPolicy(policy)).toEqual(expectedPolicy);
+    });
+  });
+
+  describe('syncRolePolicies', () => {
+    it('should add new policies when they are not in the enforcer', async () => {
+      const mockEnforcer = {
+        getFilteredPolicy: jest
+          .fn()
+          .mockResolvedValue([
+            ['role:default/test', 'catalog-entity', 'read', 'allow'],
+          ]),
+        addPolicies: jest.fn().mockResolvedValue(true),
+        removePolicies: jest.fn().mockResolvedValue(true),
+      } as unknown as EnforcerDelegate;
+
+      const desiredPolicies = [
+        ['role:default/test', 'catalog-entity', 'read', 'allow'],
+        ['role:default/test', 'catalog-entity', 'update', 'allow'],
+      ];
+
+      await syncRolePolicies(
+        mockEnforcer,
+        'role:default/test',
+        desiredPolicies,
+      );
+
+      expect(mockEnforcer.getFilteredPolicy).toHaveBeenCalledWith(
+        0,
+        'role:default/test',
+      );
+      expect(mockEnforcer.addPolicies).toHaveBeenCalledWith([
+        ['role:default/test', 'catalog-entity', 'update', 'allow'],
+      ]);
+      expect(mockEnforcer.removePolicies).not.toHaveBeenCalled();
+    });
+
+    it('should remove old policies when they are not in desired', async () => {
+      const mockEnforcer = {
+        getFilteredPolicy: jest.fn().mockResolvedValue([
+          ['role:default/test', 'catalog-entity', 'read', 'allow'],
+          ['role:default/test', 'catalog-entity', 'delete', 'allow'],
+        ]),
+        addPolicies: jest.fn().mockResolvedValue(true),
+        removePolicies: jest.fn().mockResolvedValue(true),
+      } as unknown as EnforcerDelegate;
+
+      const desiredPolicies = [
+        ['role:default/test', 'catalog-entity', 'read', 'allow'],
+      ];
+
+      await syncRolePolicies(
+        mockEnforcer,
+        'role:default/test',
+        desiredPolicies,
+      );
+
+      expect(mockEnforcer.getFilteredPolicy).toHaveBeenCalledWith(
+        0,
+        'role:default/test',
+      );
+      expect(mockEnforcer.removePolicies).toHaveBeenCalledWith([
+        ['role:default/test', 'catalog-entity', 'delete', 'allow'],
+      ]);
+      expect(mockEnforcer.addPolicies).not.toHaveBeenCalled();
+    });
+
+    it('should add and remove policies to sync to desired state', async () => {
+      const mockEnforcer = {
+        getFilteredPolicy: jest.fn().mockResolvedValue([
+          ['role:default/test', 'catalog-entity', 'read', 'allow'],
+          ['role:default/test', 'catalog-entity', 'delete', 'allow'],
+        ]),
+        addPolicies: jest.fn().mockResolvedValue(true),
+        removePolicies: jest.fn().mockResolvedValue(true),
+      } as unknown as EnforcerDelegate;
+
+      const desiredPolicies = [
+        ['role:default/test', 'catalog-entity', 'read', 'allow'],
+        ['role:default/test', 'catalog-entity', 'update', 'allow'],
+      ];
+
+      await syncRolePolicies(
+        mockEnforcer,
+        'role:default/test',
+        desiredPolicies,
+      );
+
+      expect(mockEnforcer.getFilteredPolicy).toHaveBeenCalledWith(
+        0,
+        'role:default/test',
+      );
+      expect(mockEnforcer.addPolicies).toHaveBeenCalledWith([
+        ['role:default/test', 'catalog-entity', 'update', 'allow'],
+      ]);
+      expect(mockEnforcer.removePolicies).toHaveBeenCalledWith([
+        ['role:default/test', 'catalog-entity', 'delete', 'allow'],
+      ]);
+    });
+
+    it('should do nothing when current and desired policies match', async () => {
+      const mockEnforcer = {
+        getFilteredPolicy: jest.fn().mockResolvedValue([
+          ['role:default/test', 'catalog-entity', 'read', 'allow'],
+          ['role:default/test', 'catalog-entity', 'update', 'allow'],
+        ]),
+        addPolicies: jest.fn().mockResolvedValue(true),
+        removePolicies: jest.fn().mockResolvedValue(true),
+      } as unknown as EnforcerDelegate;
+
+      const desiredPolicies = [
+        ['role:default/test', 'catalog-entity', 'read', 'allow'],
+        ['role:default/test', 'catalog-entity', 'update', 'allow'],
+      ];
+
+      await syncRolePolicies(
+        mockEnforcer,
+        'role:default/test',
+        desiredPolicies,
+      );
+
+      expect(mockEnforcer.getFilteredPolicy).toHaveBeenCalledWith(
+        0,
+        'role:default/test',
+      );
+      expect(mockEnforcer.addPolicies).not.toHaveBeenCalled();
+      expect(mockEnforcer.removePolicies).not.toHaveBeenCalled();
+    });
+
+    it('should handle empty current policies', async () => {
+      const mockEnforcer = {
+        getFilteredPolicy: jest.fn().mockResolvedValue([]),
+        addPolicies: jest.fn().mockResolvedValue(true),
+        removePolicies: jest.fn().mockResolvedValue(true),
+      } as unknown as EnforcerDelegate;
+
+      const desiredPolicies = [
+        ['role:default/test', 'catalog-entity', 'read', 'allow'],
+      ];
+
+      await syncRolePolicies(
+        mockEnforcer,
+        'role:default/test',
+        desiredPolicies,
+      );
+
+      expect(mockEnforcer.addPolicies).toHaveBeenCalledWith(desiredPolicies);
+      expect(mockEnforcer.removePolicies).not.toHaveBeenCalled();
+    });
+
+    it('should handle empty desired policies', async () => {
+      const mockEnforcer = {
+        getFilteredPolicy: jest
+          .fn()
+          .mockResolvedValue([
+            ['role:default/test', 'catalog-entity', 'read', 'allow'],
+          ]),
+        addPolicies: jest.fn().mockResolvedValue(true),
+        removePolicies: jest.fn().mockResolvedValue(true),
+      } as unknown as EnforcerDelegate;
+
+      const desiredPolicies: string[][] = [];
+
+      await syncRolePolicies(
+        mockEnforcer,
+        'role:default/test',
+        desiredPolicies,
+      );
+
+      expect(mockEnforcer.removePolicies).toHaveBeenCalledWith([
+        ['role:default/test', 'catalog-entity', 'read', 'allow'],
+      ]);
+      expect(mockEnforcer.addPolicies).not.toHaveBeenCalled();
     });
   });
 
@@ -454,7 +635,7 @@ describe('helper.ts', () => {
     const anyOfFilter: RBACFilters = {
       anyOf: [
         {
-          key: 'owner',
+          key: 'owners',
           values: ['user:default/some_user'],
         },
       ],
@@ -463,7 +644,7 @@ describe('helper.ts', () => {
     const allOfFilter: RBACFilters = {
       allOf: [
         {
-          key: 'owner',
+          key: 'owners',
           values: ['user:default/some_user'],
         },
       ],
@@ -471,7 +652,7 @@ describe('helper.ts', () => {
 
     const notFilter: RBACFilters = {
       not: {
-        key: 'owner',
+        key: 'owners',
         values: ['user:default/some_user'],
       },
     };
@@ -514,6 +695,21 @@ describe('helper.ts', () => {
 
     it('shoule return true with not filter where role owner does not match filter owner', () => {
       expect(matches(noMatchedRole, notFilter)).toBeTruthy();
+    });
+
+    it('should return true for default role regardless of owner filters', () => {
+      const defaultRole: RoleMetadata = {
+        isDefault: true,
+      };
+      expect(matches(defaultRole, anyOfFilter)).toBeTruthy();
+    });
+
+    it('should return false for unknown filter keys', () => {
+      const unknownKeyFilter: RBACFilters = {
+        key: 'unknown',
+        values: ['user:default/some_user'],
+      };
+      expect(matches(matchedRole, unknownKeyFilter)).toBeFalsy();
     });
   });
 });
@@ -650,5 +846,113 @@ describe('mergeRoleMetadata', () => {
     expect(result.description).toEqual(newMetadata.description);
     expect(result.roleEntityRef).toEqual(newMetadata.roleEntityRef);
     expect(result.source).toEqual(newMetadata.source);
+  });
+});
+
+describe('planConditionalReconcile', () => {
+  const stored = {
+    id: 1,
+    result: AuthorizeResult.CONDITIONAL,
+    roleEntityRef: 'role:default/test',
+    pluginId: 'catalog',
+    resourceType: 'catalog-entity',
+    permissionMapping: ['read'] as PermissionAction[],
+    conditions: {
+      rule: 'IS_ENTITY_OWNER',
+      resourceType: 'catalog-entity',
+      params: { claims: ['group:default/team-a'] },
+    },
+  };
+
+  it('routes overlapping replacements to updates', () => {
+    const desired = {
+      ...stored,
+      permissionMapping: ['read', 'delete'] as PermissionAction[],
+    };
+
+    const plan = planConditionalReconcile(
+      [desired],
+      [stored],
+      item => item.permissionMapping,
+    );
+
+    expect(plan.updates).toHaveLength(1);
+    expect(plan.updates[0].stored.id).toBe(1);
+    expect(plan.creates).toHaveLength(0);
+    expect(plan.deletes).toHaveLength(0);
+  });
+
+  it('merges sibling rows into update and delete', () => {
+    const siblingDelete = {
+      id: 2,
+      result: AuthorizeResult.CONDITIONAL,
+      roleEntityRef: stored.roleEntityRef,
+      pluginId: stored.pluginId,
+      resourceType: stored.resourceType,
+      permissionMapping: ['delete'] as PermissionAction[],
+      conditions: stored.conditions,
+    };
+    const desired = {
+      roleEntityRef: stored.roleEntityRef,
+      pluginId: stored.pluginId,
+      resourceType: stored.resourceType,
+      permissionMapping: ['read', 'delete'] as PermissionAction[],
+      conditions: stored.conditions,
+    };
+
+    const plan = planConditionalReconcile(
+      [desired],
+      [stored, siblingDelete],
+      item => item.permissionMapping,
+    );
+
+    expect(plan.updates).toHaveLength(1);
+    expect(plan.updates[0].stored.id).toBe(1);
+    expect(plan.creates).toHaveLength(0);
+    expect(plan.deletes).toHaveLength(1);
+    expect(plan.deletes[0].id).toBe(2);
+    expect(pendingDeleteIdsFromPlan(plan)).toEqual(new Set([2]));
+  });
+
+  it('routes non-overlapping replacement to create and delete', () => {
+    const desired = {
+      roleEntityRef: stored.roleEntityRef,
+      pluginId: stored.pluginId,
+      resourceType: stored.resourceType,
+      permissionMapping: ['delete'] as PermissionAction[],
+    };
+
+    const plan = planConditionalReconcile(
+      [desired],
+      [stored],
+      item => item.permissionMapping,
+    );
+
+    expect(plan.updates).toHaveLength(0);
+    expect(plan.creates).toHaveLength(1);
+    expect(plan.deletes).toHaveLength(1);
+  });
+});
+
+describe('conditionalActionsOverlap', () => {
+  it('returns true when action sets intersect', () => {
+    expect(conditionalActionsOverlap(['read'], ['read', 'delete'])).toBe(true);
+  });
+
+  it('returns false when action sets are disjoint', () => {
+    expect(conditionalActionsOverlap(['read'], ['delete'])).toBe(false);
+  });
+});
+
+describe('toError', () => {
+  it('returns Error instances unchanged', () => {
+    const error = new Error('failed');
+    expect(toError(error)).toBe(error);
+  });
+
+  it('wraps non-Error values', () => {
+    const error = toError('failed');
+    expect(error).toBeInstanceOf(Error);
+    expect(error.message).toBe('failed');
   });
 });

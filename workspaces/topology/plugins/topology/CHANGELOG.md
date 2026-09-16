@@ -1,5 +1,142 @@
 # @backstage-community/plugin-topology
 
+## 3.0.1
+
+### Patch Changes
+
+- e61d32b: Added an extension `if` predicate so the Topology entity tab is only shown when the user is authorized for `kubernetes.clusters.read` and `kubernetes.resources.read`.
+- c496121: Backstage version bump to v1.54.7
+
+## 3.0.0
+
+### Major Changes
+
+- bf0ec02: Graduate the Topology New Frontend System plugin from `/alpha` to the main package entry point. Legacy (OFS) exports are available from the `/legacy` subpath. Translations remain on `/alpha` and `/translations`.
+
+  **BREAKING:** The default export is now the NFS plugin created with `createFrontendPlugin`. Named OFS exports (`topologyPlugin`, `TopologyPage`) have moved to `@backstage-community/plugin-topology/legacy`.
+
+  To migrate existing NFS usage from `/alpha` to the main entry point, update imports from `@backstage-community/plugin-topology/alpha` to `@backstage-community/plugin-topology`.
+
+  To migrate existing OFS usage, update imports from `@backstage-community/plugin-topology` to `@backstage-community/plugin-topology/legacy`.
+
+  Translations are now available from `/translations` and `/alpha`.
+
+### Minor Changes
+
+- 6e05bc1: Backstage version bump to v1.54.5
+  On the New Frontend System, Topology fills the catalog entity page below the header instead of collapsing.
+  Enabled the missing-permissions e2e test for NFS app.
+
+## 2.16.3
+
+### Patch Changes
+
+- f396218: Updated dependency `js-yaml` to `^5.0.0`.
+
+## 2.16.2
+
+### Patch Changes
+
+- a3b2bd8: Fixed pod tooltip so it appears when hovering anywhere on the pod and stays visible together with the node hover shadow.
+
+## 2.16.1
+
+### Patch Changes
+
+- efe2c6d: Updated dependency `@playwright/test` to `1.62.1`.
+- dc925a3: Updated dependency `react-router-dom` to `^6.30.5`.
+
+## 2.16.0
+
+### Minor Changes
+
+- d12f713: **BREAKING CHANGE (alpha API)**
+
+  The New Frontend System entry for Topology no longer exports `topologyCatalogModule` or `topologyTranslationsModule`. Use the default `FrontendPlugin` export from `@backstage-community/plugin-topology/alpha` instead. The Topology entity tab is now gated with `isTopologyAvailable` (requires `backstage.io/kubernetes-id` or `backstage.io/kubernetes-namespace`).
+
+  Migration:
+
+  ```ts
+  // Before
+  import {
+    topologyCatalogModule,
+    topologyTranslationsModule,
+  } from '@backstage-community/plugin-topology/alpha';
+
+  createApp({
+    features: [topologyCatalogModule, topologyTranslationsModule],
+  });
+
+  // After
+  import topologyPlugin from '@backstage-community/plugin-topology/alpha';
+  import topologyTranslationsModule from '@backstage-community/plugin-topology/translations';
+
+  createApp({
+    features: [topologyPlugin, topologyTranslationsModule],
+  });
+  ```
+
+  If your app config overrides the Topology entity content extension, update the id from `entity-content:catalog/entity-content-topology` to `entity-content:topology/topology`.
+
+### Patch Changes
+
+- 6622075: Updated dependency `@playwright/test` to `1.61.1`.
+- 582a859: Updated dependency `@backstage-community/plugin-tekton-react` to `^0.7.0`.
+- 54549f2: Validate URL schemes when rendering links from Kubernetes data, and harden git URL parsing against unsafe schemes and ReDoS.
+
+## 2.15.0
+
+### Minor Changes
+
+- 13db2ee: Added support for the New Frontend System (NFS), including alpha exports with `EntityContentBlueprint` and `TranslationBlueprint`, plus dedicated dev entrypoints for backend and mock modes. Added explicit mock-only dev entry files for both legacy and NFS flows (`dev/index.mock.tsx` and `dev/alpha/index.mock.tsx`) so local development and e2e can run without backend dependencies. Removed packages/app and packages/backend to eliminate the need for a full Backstage app setup, and introduced a lightweight Topology backend that imports and relies on the Kubernetes backend plugin for real data integration when using backend mode.
+- 73d37f1: Backstage version bump to v1.52.0
+
+### Patch Changes
+
+- 70da59a: Migrated the topology plugin UI from Material UI to Backstage UI (`@backstage/ui`). Removed direct MUI dependencies; no breaking API changes.
+
+## 2.14.0
+
+### Minor Changes
+
+- e68c41c: Backstage version bump to v1.51.0
+
+## 2.13.0
+
+### Minor Changes
+
+- edaf521: Backstage version bump to v1.50.4
+
+## 2.12.3
+
+### Patch Changes
+
+- 790e405: Fix pod status icon and label alignment in Pods table
+
+## 2.12.2
+
+### Patch Changes
+
+- daac56e: Migrate to Jest 30
+
+## 2.12.1
+
+### Patch Changes
+
+- 045e3b1: Updated dependency `@backstage-community/plugin-tekton-react` to `^0.5.0`.
+
+## 2.12.0
+
+### Minor Changes
+
+- 9deb41e: Backstage version bump to v1.49.2
+
+### Patch Changes
+
+- 29fd2da: Add (already used) Material UI v4 and mobx-react dependency to resolve linter issues.
+- 9c24b43: Updated dependency `@backstage-community/plugin-tekton-react` to `^0.4.0`.
+- 1d15595: Translation updated for German and Spanish
+
 ## 2.11.0
 
 ### Minor Changes

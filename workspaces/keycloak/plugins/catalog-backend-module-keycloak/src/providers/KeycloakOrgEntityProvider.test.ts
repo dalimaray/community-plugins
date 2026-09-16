@@ -30,14 +30,61 @@ import {
   CONFIG,
   KeycloakAdminClientMockServerv18,
   KeycloakAdminClientMockServerv24,
+  KeycloakAdminClientMockServerv26,
   PASSWORD_CONFIG,
 } from '../../__fixtures__/helpers';
 import { KeycloakOrgEntityProvider } from './KeycloakOrgEntityProvider';
+
+import KeyCloakAdminClient from '@keycloak/keycloak-admin-client';
+
+const KeyCloakAdminClientMock = KeyCloakAdminClient as jest.Mock;
+
+jest.mock('@keycloak/keycloak-admin-client', () => jest.fn());
 
 const connection = {
   applyMutation: jest.fn(),
   refresh: jest.fn(),
 } as unknown as EntityProviderConnection;
+
+const expectFullCatalogMutation = () => {
+  const applyMutation = connection.applyMutation as jest.Mock;
+
+  expect(applyMutation).toHaveBeenCalledTimes(1);
+
+  const [mutation] = applyMutation.mock.calls[0];
+  expect(mutation).toEqual(
+    expect.objectContaining({
+      type: 'full',
+      entities: expect.any(Array),
+    }),
+  );
+
+  const { entities } = mutation;
+  expect(entities.length).toBeGreaterThan(0);
+  expect(entities).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({
+        locationKey: 'keycloak-org-provider:default',
+        entity: expect.objectContaining({
+          kind: 'User',
+          apiVersion: 'backstage.io/v1beta1',
+        }),
+      }),
+      expect.objectContaining({
+        locationKey: 'keycloak-org-provider:default',
+        entity: expect.objectContaining({
+          kind: 'Group',
+          apiVersion: 'backstage.io/v1beta1',
+        }),
+      }),
+    ]),
+  );
+
+  for (const { locationKey, entity } of entities) {
+    expect(locationKey).toBe('keycloak-org-provider:default');
+    expect(entity.metadata.annotations?.['keycloak.org/realm']).toBeDefined();
+  }
+};
 
 class SchedulerServiceTaskRunnerMock implements SchedulerServiceTaskRunner {
   private tasks: SchedulerServiceTaskInvocationDefinition[] = [];
@@ -59,45 +106,20 @@ const scheduler = mockServices.scheduler.mock({
 });
 
 describe.each([
+  ['v26', KeycloakAdminClientMockServerv26],
   ['v24', KeycloakAdminClientMockServerv24],
   ['v18', KeycloakAdminClientMockServerv18],
-])('KeycloakOrgEntityProvider with %s', (_version, mockImplementation) => {
+])('KeycloakOrgEntityProvider with %s', (_version, MockImplementation) => {
   let logger: ServiceMock<LoggerService>;
   let keycloakLogger: ServiceMock<LoggerService>;
   let schedule: SchedulerServiceTaskRunnerMock;
 
-  const mockPLimit = jest.fn().mockImplementation((_concurrency: number) => {
-    // Create function repeatedly calling the original function without limit implementation
-    const limit = jest
-      .fn()
-      .mockImplementation(
-        async <Arguments extends unknown[], ReturnType>(
-          fn: (...args: Arguments) => ReturnType | PromiseLike<ReturnType>,
-          ...args: Arguments
-        ): Promise<ReturnType> => {
-          const result = fn(...args);
-          return result instanceof Promise ? result : Promise.resolve(result); // Ensure result is always a Promise
-        },
-      );
-    return limit;
-  });
-
   beforeEach(() => {
     jest.clearAllMocks();
     authMock.mockReset();
-    jest.resetModules(); // Clears require cache to allow re-mocking
 
-    // @ts-ignore
-    jest.unstable_mockModule('@keycloak/keycloak-admin-client', async () => ({
-      default: mockImplementation,
-    }));
+    KeyCloakAdminClientMock.mockImplementation(() => new MockImplementation());
 
-    // @ts-ignore
-    jest.unstable_mockModule('p-limit', () => {
-      return {
-        default: mockPLimit,
-      };
-    });
     keycloakLogger = mockServices.logger.mock();
     logger = mockServices.logger.mock({
       child: () => keycloakLogger,
@@ -138,6 +160,34 @@ describe.each([
       keycloak.map(async k => await k.connect(connection)),
     );
     expect(result).toEqual([undefined]);
+  });
+
+  it('throws InputError when scheduler is provided without per-provider schedule in config', () => {
+    expect(() =>
+      KeycloakOrgEntityProvider.fromConfig(
+        {
+          config: mockServices.rootConfig({ data: CONFIG }),
+          logger,
+        },
+        {
+          scheduler: mockServices.scheduler.mock(),
+        },
+      ),
+    ).toThrow(
+      'No schedule provided via config for KeycloakOrgEntityProvider:default.',
+    );
+  });
+
+  it('commits a full catalog mutation with ingested users and groups during read()', async () => {
+    const keycloak = createProvider(PASSWORD_CONFIG);
+
+    for await (const provider of keycloak) {
+      await provider.connect(connection);
+      await provider.read({ taskInstanceId: 'read-mutation-test' });
+    }
+
+    expect(authMock).toHaveBeenCalled();
+    expectFullCatalogMutation();
   });
 
   it('should not read without a connection', async () => {
@@ -194,7 +244,7 @@ describe.each([
       clientId: 'myclientid',
       clientSecret: 'myclientsecret',
     });
-    expect(connection.applyMutation).toHaveBeenCalledTimes(1);
+    expectFullCatalogMutation();
     expect(
       (connection.applyMutation as jest.Mock).mock.calls,
     ).toMatchSnapshot();
@@ -231,6 +281,7 @@ describe.each([
       password: 'mypassword', // NOSONAR
     });
     expect(connection.applyMutation).toHaveBeenCalled();
+    expectFullCatalogMutation();
     expect(
       (connection.applyMutation as jest.Mock).mock.calls,
     ).toMatchSnapshot();

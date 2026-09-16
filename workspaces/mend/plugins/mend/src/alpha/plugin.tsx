@@ -17,7 +17,6 @@ import {
   createFrontendPlugin,
   ApiBlueprint,
   PageBlueprint,
-  NavItemBlueprint,
   FrontendPlugin,
 } from '@backstage/frontend-plugin-api';
 import { EntityContentBlueprint } from '@backstage/plugin-catalog-react/alpha';
@@ -30,6 +29,7 @@ import {
 import { mendApiRef, MendClient } from '../api';
 import { rootRouteRef } from '../routes';
 import { MendIcon } from '../components/Sidebar';
+import { MEND_PROJECT_ANNOTATION } from '../utils';
 
 /**
  * An API to communicate via the proxy to an Mend Instance
@@ -55,6 +55,9 @@ export const mendApi: any = ApiBlueprint.make({
  */
 export const mendPage = PageBlueprint.make({
   params: {
+    // The title and icon are used to render the navigation item in the sidebar.
+    title: 'Mend.io',
+    icon: <MendIcon />,
     // This is the path that was previously defined in the app code.
     // It's labelled as the default one because it can be changed via configuration.
     path: '/mend',
@@ -71,29 +74,21 @@ export const mendPage = PageBlueprint.make({
 });
 
 /**
- * Mend Navigation Sidebar.
- *
- * @alpha
- */
-export const mendNavItem: any = NavItemBlueprint.make({
-  params: {
-    title: 'Mend.io',
-    routeRef: convertLegacyRouteRef(rootRouteRef),
-    icon: MendIcon,
-  },
-});
-
-/**
  * Mend.io Tab that display the findings related to that particular entity.
  *
  * @alpha
  */
 export const mendTab: any = EntityContentBlueprint.make({
-  name: 'acrImagesEntityContent',
+  name: 'mendEntityContent',
   params: {
     path: 'mend',
     title: 'Mend.io',
-    filter: 'kind:component',
+    filter: (entity: any) => {
+      if (entity.kind !== 'Component') {
+        return false;
+      }
+      return !!entity.metadata?.annotations?.[MEND_PROJECT_ANNOTATION];
+    },
     loader: () => import('../pages/tab/').then(m => <m.MendTab />),
   },
 });
@@ -105,7 +100,7 @@ export const mendTab: any = EntityContentBlueprint.make({
  */
 const mendPlugin: FrontendPlugin = createFrontendPlugin({
   pluginId: 'mend-plugin',
-  extensions: [mendApi, mendPage, mendNavItem, mendTab],
+  extensions: [mendApi, mendPage, mendTab],
   routes: convertLegacyRouteRefs({
     root: rootRouteRef,
   }),

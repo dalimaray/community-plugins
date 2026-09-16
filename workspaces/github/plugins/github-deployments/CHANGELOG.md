@@ -1,5 +1,53 @@
 # @backstage-community/plugin-github-deployments
 
+## 1.4.0
+
+### Minor Changes
+
+- 00f747c: Backstage version bump to v1.54.5
+
+## 1.3.1
+
+### Patch Changes
+
+- fcd0f1a: Updated entity extension default filters to use the modern object form.
+
+## 1.3.0
+
+### Minor Changes
+
+- d130786: Backstage version bump to v1.53.0
+
+## 1.2.0
+
+### Minor Changes
+
+- 7e98f23: Backstage version bump to v1.52.0
+
+## 1.1.0
+
+### Minor Changes
+
+- 9a217cf: Backstage version bump to v1.51.0
+
+## 1.0.0
+
+### Major Changes
+
+- dc9bb36: **BREAKING** Migrated from Material UI (MUI) to Backstage UI (BUI). This means that Backstage UI is now a requirement for this plugin, see the Backstage UI [installation documentation](https://ui.backstage.io/get-started/installation) for more details.
+
+## 0.19.0
+
+### Minor Changes
+
+- df6b360: Backstage version bump to v1.50.3
+
+## 0.18.0
+
+### Minor Changes
+
+- d72f986: Backstage version bump to v1.49.2
+
 ## 0.17.1
 
 ### Patch Changes

@@ -1,6 +1,8 @@
 # Annotator custom action for Scaffolder Backstage
 
-The annotator module for [@backstage/plugin-scaffolder-backend](https://www.npmjs.com/package/@backstage/plugin-scaffolder-backend).
+The annotator module for `@backstage/plugin-scaffolder-backend`.
+
+For contributor setup and local development, see [CONTRIBUTING.md](./CONTRIBUTING.md).
 
 This module allows users to create custom actions for annotating their entity objects. Additionally, it enables users to utilize existing custom actions provided by the module for annotating entities with timestamps and scaffolder entity references.
 
@@ -46,7 +48,7 @@ backend.start();
 | Parameter Name                     |   Type   | Required | Description                                                                                                                                                                                                                                     |
 | ---------------------------------- | :------: | :------: | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `actionId`                         | `string` |   Yes    | A unique id for the action. Default: `catalog:annotate`, please provide one or else it may conflict with the generic `catalog:annotate` custom action that is provided by this module.                                                          |
-| `actionDescription`                | `string` |    No    | A description of what the action accomplishes. Default: "Creates a new scaffolder action to annotate the entity object with specified label(s), annotation(s) and spec property(ies)."                                                          |
+| `actionDescription`                | `string` |    No    | A description of what the action accomplishes. Default: "Annotates the entity object with specified label(s), annotation(s) and spec property(ies)."                                                                                            |
 | `loggerInfoMsg`                    | `string` |    No    | A message that will be logged upon the execution of the action. Default: "Annotating your object"                                                                                                                                               |
 | `annotateEntityObject.labels`      | `object` |    No    | Key-value pairs to be added to the `metadata.labels` of the entity                                                                                                                                                                              |
 | `annotateEntityObject.annotations` | `object` |    No    | Key-value pairs to be added to the `metadata.annotations` of the entity                                                                                                                                                                         |
@@ -65,7 +67,7 @@ import { createAnnotatorAction } from '@backstage-community/plugin-scaffolder-ba
 export const createAddCompanyTitleAction = () => {
   return createAnnotatorAction(
     'catalog:company-title',
-    'Creates a new `catalog:company-title` Scaffolder action to annotate scaffolded entities with the company title.',
+    'Annotates scaffolded entities with the company title.',
     'Annotating catalog-info.yaml with the company title',
   );
 };

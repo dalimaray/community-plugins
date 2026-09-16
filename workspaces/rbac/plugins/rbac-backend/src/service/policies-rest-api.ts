@@ -21,6 +21,7 @@ import type {
   HttpAuthService,
   PermissionsService,
 } from '@backstage/backend-plugin-api';
+import { parseEntityRef } from '@backstage/catalog-model';
 import {
   ConflictError,
   InputError,
@@ -34,8 +35,7 @@ import {
   ResourcePermission,
 } from '@backstage/plugin-permission-common';
 
-import express from 'express';
-import type { Request } from 'express-serve-static-core';
+import express, { Request } from 'express';
 import { isEmpty, isEqual } from 'lodash';
 import type { ParsedQs } from 'qs';
 
@@ -63,10 +63,16 @@ import {
   deepSortedEqual,
   isPermissionAction,
   policyToString,
-  processConditionMapping,
   matches,
 } from '../helper';
-import { validateRoleCondition } from '../validation/condition-validation';
+import {
+  type ConditionValidationLimits,
+  validateRoleCondition,
+} from '../validation/condition-validation';
+import {
+  isPermissionInfo,
+  type PermissionMapping,
+} from '@backstage-community/plugin-rbac-common';
 import {
   validateEntityReference,
   validatePolicy,
@@ -81,6 +87,22 @@ import { registerPermissionDefinitionRoutes } from './permission-definition-rout
 import { PermissionDependentPluginStore } from '../database/extra-permission-enabled-plugins-storage';
 import { ExtendablePluginIdProvider } from './extendable-id-provider';
 import { createRouter } from './router';
+
+function validateNamedPermissionMapping(
+  permissionMapping: PermissionMapping[],
+): void {
+  const actionOnlyEntry = permissionMapping.find(
+    entry => !isPermissionInfo(entry),
+  );
+  if (actionOnlyEntry) {
+    throw new InputError(
+      `REST API requires permissionMapping entries to include permission name, ` +
+        `e.g. {name: "catalog.entity.read", action: "read"}. ` +
+        `Received plain action: '${actionOnlyEntry}'. ` +
+        `Action-only (broad) format is supported in YAML conditional policies file and provider extension point.`,
+    );
+  }
+}
 
 export async function authorizeConditional(
   request: Request,
@@ -143,13 +165,24 @@ export class PoliciesServer {
     private readonly roleMetadata: RoleMetadataStorage,
     private readonly extraPluginsIdStorage: PermissionDependentPluginStore,
     private readonly pluginIdProvider: ExtendablePluginIdProvider,
+    private readonly conditionValidationLimits: ConditionValidationLimits,
     private readonly rbacProviders?: RBACProvider[],
   ) {}
 
   async serve(): Promise<express.Router> {
     const router = await createRouter(this.options);
 
-    const { logger, auditor, auth, permissionsRegistry } = this.options;
+    const { logger, auditor, permissionsRegistry } = this.options;
+
+    const defRoleMeta = this.roleMetadata.getCachedDefaultRoleMetadata();
+    let defRole: Role | undefined;
+    if (defRoleMeta) {
+      defRole = {
+        name: defRoleMeta.roleEntityRef,
+        memberReferences: [],
+        metadata: daoToMetadata(defRoleMeta),
+      };
+    }
 
     const isPluginEnabled =
       this.options.config.getOptionalBoolean('permission.enabled');
@@ -299,10 +332,7 @@ export class PoliciesServer {
 
         const entityRef = this.getEntityReference(request);
 
-        const policyRaw: RoleBasedPolicy[] = request.body;
-        if (isEmpty(policyRaw)) {
-          throw new InputError(`permission policy must be present`); // 400
-        }
+        const policyRaw = this.getPolicyArrayFromBody(request.body);
 
         policyRaw.forEach(element => {
           element.entityReference = entityRef;
@@ -333,24 +363,13 @@ export class PoliciesServer {
           this.options,
         );
 
-        const policyRaw: RoleBasedPolicy[] = request.body;
-
-        if (isEmpty(policyRaw)) {
-          throw new InputError(`permission policy must be present`); // 400
-        }
+        const policyRaw = this.getPolicyArrayFromBody(request.body);
 
         const processedPolicies = await this.processPolicies(
           policyRaw,
           false,
           undefined,
         );
-
-        const entityRef = processedPolicies[0][0];
-        const roleMetadata =
-          await this.roleMetadata.findRoleMetadata(entityRef);
-        if (entityRef.startsWith('role:default') && !roleMetadata) {
-          throw new Error(`Corresponding role ${entityRef} was not found`);
-        }
 
         await this.enforcer.addPolicies(processedPolicies);
 
@@ -427,12 +446,6 @@ export class PoliciesServer {
           conditionsFilter,
         );
 
-        const roleMetadata =
-          await this.roleMetadata.findRoleMetadata(entityRef);
-        if (entityRef.startsWith('role:default') && !roleMetadata) {
-          throw new Error(`Corresponding role ${entityRef} was not found`);
-        }
-
         await this.enforcer.updatePolicies(
           processedOldPolicy,
           processedNewPolicy,
@@ -464,6 +477,10 @@ export class PoliciesServer {
         const roles = await this.enforcer.getGroupingPolicy();
         const body = await this.transformRoleArray(conditionsFilter, ...roles);
 
+        if (defRole) {
+          body.push(defRole);
+        }
+
         response.json(body);
       },
     );
@@ -485,12 +502,16 @@ export class PoliciesServer {
 
         const roleEntityRef = this.getEntityReference(request, true);
 
-        const role = await this.enforcer.getFilteredGroupingPolicy(
-          1,
-          roleEntityRef,
-        );
-
-        const body = await this.transformRoleArray(conditionsFilter, ...role);
+        let body: Role[];
+        if (defRole && roleEntityRef === defRole.name) {
+          body = [defRole];
+        } else {
+          const role = await this.enforcer.getFilteredGroupingPolicy(
+            1,
+            roleEntityRef,
+          );
+          body = await this.transformRoleArray(conditionsFilter, ...role);
+        }
         if (body.length !== 0) {
           response.json(body);
         } else {
@@ -639,7 +660,7 @@ export class PoliciesServer {
           throw new NotAllowedError(`Unable to edit role: ${err.message}`);
         }
 
-        if (!matches(oldMetadata, conditionsFilter)) {
+        if (!matches(daoToMetadata(oldMetadata), conditionsFilter)) {
           throw new NotAllowedError(); // 403
         }
 
@@ -741,7 +762,10 @@ export class PoliciesServer {
         const currentMetadata =
           await this.roleMetadata.findRoleMetadata(roleEntityRef);
 
-        if (!matches(currentMetadata, conditionsFilter)) {
+        if (
+          !currentMetadata ||
+          !matches(daoToMetadata(currentMetadata), conditionsFilter)
+        ) {
           throw new NotAllowedError(); // 403
         }
 
@@ -833,19 +857,9 @@ export class PoliciesServer {
           this.getActionQueries(request.query.actions),
         );
 
-        const body: RoleConditionalPolicyDecision<PermissionAction>[] =
-          conditions
-            .map(condition => {
-              return {
-                ...condition,
-                permissionMapping: condition.permissionMapping.map(
-                  pm => pm.action,
-                ),
-              };
-            })
-            .filter(condition => {
-              return matchedRoleName.includes(condition.roleEntityRef);
-            });
+        const body = conditions.filter(condition =>
+          matchedRoleName.includes(condition.roleEntityRef),
+        );
 
         response.json(body);
       },
@@ -861,18 +875,15 @@ export class PoliciesServer {
           this.options,
         );
 
-        const roleConditionPolicy: RoleConditionalPolicyDecision<PermissionAction> =
-          request.body;
-        validateRoleCondition(roleConditionPolicy);
-
-        const conditionToCreate = await processConditionMapping(
+        const roleConditionPolicy: RoleConditionalPolicyDecision = request.body;
+        validateRoleCondition(
           roleConditionPolicy,
-          this.pluginPermMetaData,
-          auth,
+          this.conditionValidationLimits,
         );
+        validateNamedPermissionMapping(roleConditionPolicy.permissionMapping);
 
         const id =
-          await this.conditionalStorage.createCondition(conditionToCreate);
+          await this.conditionalStorage.createCondition(roleConditionPolicy);
 
         const body = { id: id };
 
@@ -914,15 +925,8 @@ export class PoliciesServer {
           return role.roleEntityRef;
         });
 
-        const body: RoleConditionalPolicyDecision<PermissionAction> | [] =
-          matchedRoleName.includes(condition.roleEntityRef)
-            ? {
-                ...condition,
-                permissionMapping: condition.permissionMapping.map(
-                  pm => pm.action,
-                ),
-              }
-            : [];
+        const body: RoleConditionalPolicyDecision | [] =
+          matchedRoleName.includes(condition.roleEntityRef) ? condition : [];
 
         response.json(body);
       },
@@ -952,22 +956,20 @@ export class PoliciesServer {
         if (!condition) {
           throw new NotFoundError(`Condition with id ${id} was not found`);
         }
-        const conditionToDelete: RoleConditionalPolicyDecision<PermissionAction> =
-          {
-            ...condition,
-            permissionMapping: condition.permissionMapping.map(pm => pm.action),
-          };
 
         const roleMetadata = await this.roleMetadata.findRoleMetadata(
-          conditionToDelete.roleEntityRef,
+          condition.roleEntityRef,
         );
 
-        if (!matches(roleMetadata, conditionsFilter)) {
+        if (
+          !roleMetadata ||
+          !matches(daoToMetadata(roleMetadata), conditionsFilter)
+        ) {
           throw new NotAllowedError(); // 403
         }
 
         await this.conditionalStorage.deleteCondition(id);
-        response.locals.meta = { condition: conditionToDelete }; // auditor
+        response.locals.meta = { condition }; // auditor
 
         response.status(204).end();
       },
@@ -1003,22 +1005,22 @@ export class PoliciesServer {
           condition.roleEntityRef,
         );
 
-        if (!matches(roleMetadata, conditionsFilter)) {
+        if (
+          !roleMetadata ||
+          !matches(daoToMetadata(roleMetadata), conditionsFilter)
+        ) {
           throw new NotAllowedError(); // 403
         }
 
-        const roleConditionPolicy: RoleConditionalPolicyDecision<PermissionAction> =
-          request.body;
+        const roleConditionPolicy: RoleConditionalPolicyDecision = request.body;
 
-        validateRoleCondition(roleConditionPolicy);
-
-        const conditionToUpdate = await processConditionMapping(
+        validateRoleCondition(
           roleConditionPolicy,
-          this.pluginPermMetaData,
-          auth,
+          this.conditionValidationLimits,
         );
+        validateNamedPermissionMapping(roleConditionPolicy.permissionMapping);
 
-        await this.conditionalStorage.updateCondition(id, conditionToUpdate);
+        await this.conditionalStorage.updateCondition(id, roleConditionPolicy);
 
         response.locals.meta = { condition: roleConditionPolicy }; // auditor
 
@@ -1221,6 +1223,18 @@ export class PoliciesServer {
     );
   }
 
+  getPolicyArrayFromBody(body: unknown): RoleBasedPolicy[] {
+    if (!Array.isArray(body)) {
+      throw new InputError(`permission policy must be provided as an array`);
+    }
+
+    if (isEmpty(body)) {
+      throw new InputError(`permission policy must be present`);
+    }
+
+    return body as RoleBasedPolicy[];
+  }
+
   async processPolicies(
     policyArray: RoleBasedPolicy[],
     isOld?: boolean,
@@ -1243,7 +1257,16 @@ export class PoliciesServer {
         policy.entityReference!,
       );
 
-      if (!matches(metadata, filter)) {
+      if (!metadata) {
+        const { kind } = parseEntityRef(policy.entityReference!);
+        if (kind === 'role') {
+          throw new NotFoundError(
+            `Corresponding role ${policy.entityReference} was not found`,
+          );
+        }
+        throw new NotAllowedError(); // 403
+      }
+      if (!matches(daoToMetadata(metadata), filter)) {
         throw new NotAllowedError(); // 403
       }
 

@@ -26,6 +26,7 @@ import { filterTableData } from '../../utils/filter-table-data';
 import EditRole from '../EditRole';
 import { getColumns } from './PermissionsListColumns';
 import { StyledTableWrapper } from './StyledTableWrapper';
+import { TableAction } from './TableAction';
 import { useLanguage } from '../../hooks/useLanguage';
 import { useTranslation } from '../../hooks/useTranslation';
 import { capitalizeFirstLetter } from '../../utils/string-utils';
@@ -33,10 +34,16 @@ import { capitalizeFirstLetter } from '../../utils/string-utils';
 type PermissionsCardProps = {
   entityReference: string;
   canReadUsersAndGroups: boolean;
+  /** When true, the role is read-only (default role). */
+  isDefaultRole?: boolean;
 };
 
 const getRefreshIcon = () => <CachedIcon />;
-const getEditIcon = (isAllowed: boolean, roleName: string) => {
+const getEditIcon = (
+  isAllowed: boolean,
+  roleName: string,
+  tooltip?: string,
+) => {
   const { kind, name, namespace } = parseEntityRef(roleName);
 
   return (
@@ -45,6 +52,7 @@ const getEditIcon = (isAllowed: boolean, roleName: string) => {
       canEdit={isAllowed}
       roleName={roleName}
       to={`../../role/${kind}/${namespace}/${name}?activeStep=${2}`}
+      tooltip={tooltip}
     />
   );
 };
@@ -52,6 +60,7 @@ const getEditIcon = (isAllowed: boolean, roleName: string) => {
 export const PermissionsCard = ({
   entityReference,
   canReadUsersAndGroups,
+  isDefaultRole = false,
 }: PermissionsCardProps) => {
   const { t } = useTranslation();
   const { data, loading, retry, error } =
@@ -79,6 +88,16 @@ export const PermissionsCard = ({
     return policies;
   }, [data, searchText, columns, locale]);
 
+  let editTooltip: string;
+
+  if (isDefaultRole) {
+    editTooltip = t('errors.defaultRoleReadOnly');
+  } else if (canReadUsersAndGroups) {
+    editTooltip = t('common.edit');
+  } else {
+    editTooltip = t('common.unauthorizedToEdit');
+  }
+
   const actions = [
     {
       icon: getRefreshIcon,
@@ -91,12 +110,15 @@ export const PermissionsCard = ({
       },
     },
     {
-      icon: () => getEditIcon(canReadUsersAndGroups, entityReference),
-      tooltip: canReadUsersAndGroups
-        ? t('common.edit')
-        : t('common.unauthorizedToEdit'),
+      icon: () =>
+        getEditIcon(
+          !isDefaultRole && canReadUsersAndGroups,
+          entityReference,
+          editTooltip,
+        ),
       isFreeAction: true,
       onClick: () => {},
+      customComponent: true,
     },
   ];
 
@@ -122,7 +144,13 @@ export const PermissionsCard = ({
         <Table
           title={title}
           actions={actions}
-          options={{ padding: 'default', search: true, paging: true }}
+          components={{ Action: TableAction }}
+          options={{
+            padding: 'default',
+            search: true,
+            paging: true,
+            draggable: false,
+          }}
           data={data}
           columns={columns}
           isLoading={loading}
@@ -137,7 +165,10 @@ export const PermissionsCard = ({
           onSearchChange={setSearchText}
           localization={{
             toolbar: { searchPlaceholder: t('table.searchPlaceholder') },
-            pagination: { labelRowsSelect: t('table.labelRowsSelect') },
+            pagination: {
+              labelRowsSelect: t('table.labelRowsSelect'),
+              labelDisplayedRows: t('table.labelDisplayedRows'),
+            },
           }}
         />
       </StyledTableWrapper>

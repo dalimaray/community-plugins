@@ -23,6 +23,7 @@ import type {
   LoggerService,
   PermissionsRegistryService,
   PermissionsService,
+  UserInfoService,
 } from '@backstage/backend-plugin-api';
 import { CatalogClient } from '@backstage/catalog-client';
 import type { Config } from '@backstage/config';
@@ -54,6 +55,14 @@ import { permissionMetadataResourceRef } from '../permissions/resource';
 import { PermissionDependentPluginDatabaseStore } from '../database/extra-permission-enabled-plugins-storage';
 import { ExtendablePluginIdProvider } from './extendable-id-provider';
 import { PolicyExtensionPoint } from '@backstage/plugin-permission-node/alpha';
+import {
+  DefaultPermissionsReader,
+  DefaultPermissionsSyncher,
+} from '../default-permissions/default-permissions';
+import {
+  readConditionValidationLimitsFromConfig,
+  resolveConditionValidationLimits,
+} from '../validation/condition-validation';
 
 /**
  * @public
@@ -64,6 +73,7 @@ export type EnvOptions = {
   discovery: DiscoveryService;
   permissions: PermissionEvaluator;
   auth: AuthService;
+  userInfo: UserInfoService;
   httpAuth: HttpAuthService;
   auditor: AuditorService;
   lifecycle: LifecycleService;
@@ -114,6 +124,8 @@ export class PolicyBuilder {
       .forPlugin('catalog', { logger: env.logger, lifecycle: env.lifecycle })
       .getClient();
 
+    const defPermReader = new DefaultPermissionsReader(env.config);
+
     const rm = new BackstageRoleManager(
       catalogClient,
       env.logger,
@@ -121,6 +133,7 @@ export class PolicyBuilder {
       databaseClient,
       env.config,
       env.auth,
+      defPermReader,
     );
     enf.setRoleManager(rm);
     enf.enableAutoBuildRoleLinks(false);
@@ -139,11 +152,24 @@ export class PolicyBuilder {
       databaseClient,
     );
 
+    const defPermSyncher = new DefaultPermissionsSyncher(
+      roleMetadataStorage,
+      enforcerDelegate,
+      defPermReader,
+    );
+    await defPermSyncher.sync();
+
     env.permissionsRegistry.addResourceType({
       resourceRef: permissionMetadataResourceRef,
       getResources: resourceRefs =>
         Promise.all(
           resourceRefs.map(ref => {
+            if (
+              ref ===
+              roleMetadataStorage.getCachedDefaultRoleMetadata()?.roleEntityRef
+            ) {
+              return roleMetadataStorage.getCachedDefaultRoleMetadata();
+            }
             return roleMetadataStorage.findRoleMetadata(ref);
           }),
         ),
@@ -156,6 +182,7 @@ export class PolicyBuilder {
         rbacProviders,
         enforcerDelegate,
         roleMetadataStorage,
+        conditionStorage,
         env.logger,
         env.auditor,
       );
@@ -180,6 +207,12 @@ export class PolicyBuilder {
     });
 
     const isPluginEnabled = env.config.getOptionalBoolean('permission.enabled');
+    // Invalid permission.rbac.validation.* must not prevent startup when RBAC is off.
+    const conditionValidationLimits = isPluginEnabled
+      ? resolveConditionValidationLimits(
+          readConditionValidationLimitsFromConfig(env.config),
+        )
+      : resolveConditionValidationLimits({});
     if (isPluginEnabled) {
       env.logger.info('RBAC backend plugin was enabled');
 
@@ -192,8 +225,9 @@ export class PolicyBuilder {
           enforcerDelegate,
           roleMetadataStorage,
           databaseClient,
-          pluginPermMetaData,
+          env.userInfo,
           env.auth,
+          conditionValidationLimits,
         ),
       );
     } else {
@@ -222,6 +256,7 @@ export class PolicyBuilder {
       roleMetadataStorage,
       extraPluginsIdStorage,
       extendablePluginIdProvider,
+      conditionValidationLimits,
       rbacProviders,
     );
     return server.serve();

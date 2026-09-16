@@ -1,5 +1,26 @@
 # @backstage-community/plugin-tech-insights-common
 
+## 0.11.0
+
+### Minor Changes
+
+- efd82d4: Backstage version bump to v1.52.0
+- 9fcbc6c: Backstage version bump to v1.54.5
+
+## 0.10.0
+
+### Minor Changes
+
+- b8b1d30: Backstage version bump to v1.51.0
+
+## 0.9.0
+
+### Minor Changes
+
+- 756e05a: - Backstage version bump to v1.50.2.
+  - `techInsightsNavItem` has been removed as it's no longer needed.
+  - `EntityPredicate` has been replaced with `FilterPredicate` from `@backstage/filter-predicates`.
+
 ## 0.8.2
 
 ### Patch Changes

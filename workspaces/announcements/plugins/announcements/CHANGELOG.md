@@ -1,5 +1,137 @@
 # @backstage-community/plugin-announcements
 
+## 2.13.0
+
+### Minor Changes
+
+- bae4489: Backstage version bump to v1.54.5
+
+### Patch Changes
+
+- Updated dependencies [bae4489]
+  - @backstage-community/plugin-announcements-common@0.24.0
+  - @backstage-community/plugin-announcements-react@0.29.0
+
+## 2.12.1
+
+### Patch Changes
+
+- fcd0f1a: Updated entity extension default filter to use the modern object form.
+
+## 2.12.0
+
+### Minor Changes
+
+- 28ac778: Backstage version bump to v1.53.0
+
+### Patch Changes
+
+- 900d1b9: Migrated extension config from deprecated `config.schema` to `configSchema` with zod v4 Standard Schema
+- Updated dependencies [28ac778]
+  - @backstage-community/plugin-announcements-common@0.23.0
+  - @backstage-community/plugin-announcements-react@0.28.0
+
+## 2.11.1
+
+### Patch Changes
+
+- 908d9af: Added title and icon to the announcements page extension for the new frontend system.
+
+## 2.11.0
+
+### Minor Changes
+
+- fa4b770: Backstage version bump to v1.52.0
+
+### Patch Changes
+
+- Updated dependencies [fa4b770]
+  - @backstage-community/plugin-announcements-common@0.22.0
+  - @backstage-community/plugin-announcements-react@0.27.0
+
+## 2.10.0
+
+### Minor Changes
+
+- ea738a2: Backstage version bump to v1.51.0
+
+### Patch Changes
+
+- Updated dependencies [ea738a2]
+  - @backstage-community/plugin-announcements-common@0.21.0
+  - @backstage-community/plugin-announcements-react@0.26.0
+
+## 2.9.1
+
+### Patch Changes
+
+- 1df945e: Remove the deprecated navItem. This component is no longer needed as a separate extension in the new frontend system
+
+## 2.9.0
+
+### Minor Changes
+
+- 510c863: Backstage version bump to v1.50.2
+
+### Patch Changes
+
+- Updated dependencies [510c863]
+  - @backstage-community/plugin-announcements-common@0.20.0
+  - @backstage-community/plugin-announcements-react@0.25.0
+
+## 2.8.0
+
+### Minor Changes
+
+- daaeefa: Migrated `AnnouncementsCard` component to Backstage UI.
+
+### Patch Changes
+
+- ebf4891: Updated dependency `slugify` to `1.6.9`.
+
+## 2.7.0
+
+### Minor Changes
+
+- e0c2eb4: Backstage version bump to v1.49.2
+
+### Patch Changes
+
+- a24a1d0: Improved jsdocs for all alpha exports
+- Updated dependencies [e0c2eb4]
+  - @backstage-community/plugin-announcements-common@0.19.0
+  - @backstage-community/plugin-announcements-react@0.24.0
+
+## 2.6.0
+
+### Minor Changes
+
+- 8403fca: Backstage version bump to v1.49.1. This release also includes migration from `AlertApi` to the new `ToastApi`.
+
+### Patch Changes
+
+- 7397465: Updated dependency `slugify` to `1.6.8`.
+- Updated dependencies [8403fca]
+  - @backstage-community/plugin-announcements-react@0.23.0
+
+## 2.5.1
+
+### Patch Changes
+
+- c4d2f14: Ensure that Announcement banner is always on top of the page. It fixes the issue where the banner could be hidden behind existing page content.
+
+## 2.5.0
+
+### Minor Changes
+
+- a598f92: Migrate Announcements Banner to the Backstage UI using the Alert component.
+
+  This change also removes the `variant` React prop. If you were using the prop with the `block` or `floating` values, it can be safely removed, as the banner now uses the Backstage UI Alert default style.
+
+### Patch Changes
+
+- 693fc2f: Replace Announcements plugin icon from Material UI's RecordVoiceOverIcon to Remix Icon's RiMegaphoneLine. This change is made in the SearchPage component, the search result list item component, the search result type blueprint and use by default for nav blueprint.
+
 ## 2.4.0
 
 ### Minor Changes

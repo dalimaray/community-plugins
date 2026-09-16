@@ -16,22 +16,25 @@
 
 import { compatWrapper } from '@backstage/core-compat-api';
 import { AppRootElementBlueprint } from '@backstage/frontend-plugin-api';
+import { z } from 'zod';
 import { NewAnnouncementBanner } from '../components/NewAnnouncementBanner';
 
 /**
+ * Displays unseen announcements as dismissable banners at the app root.
+ *
+ * @remarks
+ * Extension ID: `app-root-element:announcements/banner`
+ *
  * @alpha
  */
 export const announcementsBanner = AppRootElementBlueprint.makeWithOverrides({
   name: 'banner',
-  config: {
-    schema: {
-      variant: z => z.enum(['block', 'floating']).default('floating'),
-      max: z => z.number().optional(),
-      category: z => z.string().optional(),
-      active: z => z.boolean().optional(),
-      current: z => z.boolean().optional(),
-      tags: z => z.array(z.string()).optional(),
-    },
+  configSchema: {
+    max: z.number().optional().default(1),
+    category: z.string().optional(),
+    active: z.boolean().optional(),
+    current: z.boolean().optional(),
+    tags: z.array(z.string()).optional(),
   },
   factory: (originalFactory, { config }) => {
     return originalFactory({

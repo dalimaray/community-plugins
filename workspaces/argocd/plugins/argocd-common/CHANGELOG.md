@@ -1,5 +1,46 @@
 # @backstage-community/plugin-argocd-common
 
+## 1.18.0
+
+### Minor Changes
+
+- 548d597: Backstage version bump to v1.54.5
+
+## 1.17.0
+
+### Minor Changes
+
+- 730c396: Backstage version bump to v1.52.0
+
+### Patch Changes
+
+- d640871: Add CI wiring and permission-contract tests for the Argo CD backend and common packages, plus contributor guides and a minimal backend dev/ harness config so Backstage dependency bumps can be trusted without a full workspace smoke.
+
+## 1.16.0
+
+### Minor Changes
+
+- ed7cb18: Backstage version bump to v1.50.4
+
+## 1.15.0
+
+### Minor Changes
+
+- 265995b: Backstage version bump to v1.49.2
+
+## 1.14.1
+
+### Patch Changes
+
+- dc8e24e: Backstage version bump to v1.48.5
+
+## 1.14.0
+
+### Minor Changes
+
+- 2cde93e: Add additional functionality to the ArgoCDService and move it to a new argocd-node plugin. These new functions will be used in the ArgoCD Scaffolder plugin.
+- c59fa05: Backstage version bump to v1.48.4
+
 ## 1.13.0
 
 ### Minor Changes

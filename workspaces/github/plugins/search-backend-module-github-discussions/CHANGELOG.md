@@ -1,5 +1,71 @@
 # @backstage-community/plugin-search-backend-module-github-discussions
 
+## 0.16.0
+
+### Minor Changes
+
+- 00f747c: Backstage version bump to v1.54.5
+
+### Patch Changes
+
+- Updated dependencies [00f747c]
+  - @backstage-community/plugin-github-discussions-common@0.16.0
+
+## 0.15.0
+
+### Minor Changes
+
+- d130786: Backstage version bump to v1.53.0
+
+### Patch Changes
+
+- Updated dependencies [d130786]
+  - @backstage-community/plugin-github-discussions-common@0.15.0
+
+## 0.14.0
+
+### Minor Changes
+
+- 7e98f23: Backstage version bump to v1.52.0
+
+### Patch Changes
+
+- Updated dependencies [7e98f23]
+  - @backstage-community/plugin-github-discussions-common@0.14.0
+
+## 0.13.0
+
+### Minor Changes
+
+- 9a217cf: Backstage version bump to v1.51.0
+
+### Patch Changes
+
+- Updated dependencies [9a217cf]
+  - @backstage-community/plugin-github-discussions-common@0.13.0
+
+## 0.12.0
+
+### Minor Changes
+
+- df6b360: Backstage version bump to v1.50.3
+
+### Patch Changes
+
+- Updated dependencies [df6b360]
+  - @backstage-community/plugin-github-discussions-common@0.12.0
+
+## 0.11.0
+
+### Minor Changes
+
+- d72f986: Backstage version bump to v1.49.2
+
+### Patch Changes
+
+- Updated dependencies [d72f986]
+  - @backstage-community/plugin-github-discussions-common@0.11.0
+
 ## 0.10.1
 
 ### Patch Changes

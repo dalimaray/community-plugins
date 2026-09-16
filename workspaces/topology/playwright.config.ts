@@ -16,24 +16,39 @@
 
 import { defineConfig } from '@playwright/test';
 
+// APP_MODE: 'legacy' (dev/legacy.mock.tsx) or 'nfs' (dev/index.mock.tsx)
+const appMode = process.env.APP_MODE || 'legacy';
+const startCommand =
+  appMode === 'legacy' ? 'yarn start:legacy:mock' : 'yarn start:mock';
+
 export default defineConfig({
+  // First webpack compile of the mock app can exceed the 30s default.
+  timeout: 120_000,
   webServer: process.env.PLAYWRIGHT_URL
     ? []
-    : {
-        command: 'yarn start',
-        cwd: 'plugins/topology',
-        port: 3000,
-        reuseExistingServer: true,
-      },
+    : [
+        {
+          command: startCommand,
+          cwd: 'plugins/topology',
+          // Wait for an HTTP response rather than only the TCP port. The
+          // dev-server can bind the port before the first compile finishes.
+          url: 'http://localhost:3000',
+          reuseExistingServer: !process.env.CI,
+          timeout: 120_000,
+        },
+      ],
 
   retries: process.env.CI ? 2 : 0,
 
-  reporter: [['html', { open: 'never', outputFolder: 'e2e-test-report' }]],
+  reporter: [
+    ['html', { open: 'never', outputFolder: `e2e-test-report-${appMode}` }],
+  ],
 
   use: {
     baseURL: process.env.PLAYWRIGHT_URL ?? 'http://localhost:3000',
     screenshot: 'only-on-failure',
-    trace: 'retain-on-failure',
+    trace: 'on-first-retry',
+    video: 'retain-on-failure',
   },
 
   outputDir: 'node_modules/.cache/e2e-test-results',
@@ -69,6 +84,22 @@ export default defineConfig({
       use: {
         channel: 'chrome',
         locale: 'ja',
+      },
+    },
+    {
+      name: 'de',
+      testDir: './plugins/topology/tests',
+      use: {
+        channel: 'chrome',
+        locale: 'de',
+      },
+    },
+    {
+      name: 'es',
+      testDir: './plugins/topology/tests',
+      use: {
+        channel: 'chrome',
+        locale: 'es',
       },
     },
   ],

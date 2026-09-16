@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 import type { LoggerService } from '@backstage/backend-plugin-api';
-import { mockServices } from '@backstage/backend-test-utils';
+import { mockCredentials, mockServices } from '@backstage/backend-test-utils';
 import { Config } from '@backstage/config';
 import {
   AuthorizeResult,
@@ -35,7 +35,10 @@ import {
 import * as Knex from 'knex';
 import { MockClient } from 'knex-mock-client';
 
-import type { RoleMetadata } from '@backstage-community/plugin-rbac-common';
+import type {
+  RoleBasedPolicy,
+  RoleMetadata,
+} from '@backstage-community/plugin-rbac-common';
 
 import { resolve } from 'path';
 
@@ -47,11 +50,17 @@ import {
   RoleMetadataStorage,
 } from '../database/role-metadata';
 import { BackstageRoleManager } from '../role-manager/role-manager';
+import { DefaultPermissionsReader } from '../default-permissions/default-permissions';
 import { EnforcerDelegate } from '../service/enforcer-delegate';
 import { MODEL } from '../service/permission-model';
-import { PluginPermissionMetadataCollector } from '../service/plugin-endpoints';
 import { RBACPermissionPolicy } from './permission-policy';
-import { catalogMock, mockAuditorService } from '../../__fixtures__/mock-utils';
+import { buildDefaultRoleMetadata } from '../default-permissions/default-permissions';
+import {
+  catalogMock,
+  mockAuditorService,
+  mockAuthService,
+  mockUserInfoService,
+} from '../../__fixtures__/mock-utils';
 import {
   clearAuditorMock,
   expectAuditorLogForPermission,
@@ -84,6 +93,9 @@ const roleMetadataStorageMock: RoleMetadataStorage = {
   createRoleMetadata: jest.fn().mockImplementation(),
   updateRoleMetadata: jest.fn().mockImplementation(),
   removeRoleMetadata: jest.fn().mockImplementation(),
+  getCachedDefaultRoleMetadata: jest.fn().mockImplementation(() => undefined),
+  getDefaultRole: jest.fn().mockResolvedValue(undefined),
+  syncDefaultRoleMetadata: jest.fn().mockResolvedValue(undefined),
 };
 
 const csvPermFile = resolve(
@@ -92,15 +104,6 @@ const csvPermFile = resolve(
 );
 
 const mockClientKnex = Knex.knex({ client: MockClient });
-
-const mockAuthService = mockServices.auth();
-
-const pluginMetadataCollectorMock: Partial<PluginPermissionMetadataCollector> =
-  {
-    getPluginConditionRules: jest.fn().mockImplementation(),
-    getPluginPolicies: jest.fn().mockImplementation(),
-    getMetadataByPluginId: jest.fn().mockImplementation(),
-  };
 
 const modifiedBy = 'user:default/some-admin';
 
@@ -598,6 +601,11 @@ describe('RBACPermissionPolicy Tests', () => {
       createRoleMetadata: jest.fn().mockImplementation(),
       updateRoleMetadata: jest.fn().mockImplementation(),
       removeRoleMetadata: jest.fn().mockImplementation(),
+      getCachedDefaultRoleMetadata: jest
+        .fn()
+        .mockImplementation(() => undefined),
+      getDefaultRole: jest.fn().mockResolvedValue(undefined),
+      syncDefaultRoleMetadata: jest.fn().mockResolvedValue(undefined),
     };
 
     beforeEach(async () => {
@@ -925,6 +933,11 @@ describe('RBACPermissionPolicy Tests', () => {
       createRoleMetadata: jest.fn().mockImplementation(),
       updateRoleMetadata: jest.fn().mockImplementation(),
       removeRoleMetadata: jest.fn().mockImplementation(),
+      getCachedDefaultRoleMetadata: jest
+        .fn()
+        .mockImplementation(() => undefined),
+      getDefaultRole: jest.fn().mockResolvedValue(undefined),
+      syncDefaultRoleMetadata: jest.fn().mockResolvedValue(undefined),
     };
 
     const adminRole = 'role:default/rbac_admin';
@@ -1036,6 +1049,112 @@ describe('RBACPermissionPolicy Tests', () => {
       );
     });
 
+    it('should allow access to a user who is a member of a group configured as super user', async () => {
+      const superUsersConfig = new Array<{ name: string }>();
+      superUsersConfig.push({ name: 'group:default/super_users_group' });
+
+      const config = newConfig(csvPermFile, admins, superUsersConfig);
+      const adapter = await newAdapter(config);
+      const enfDelegateForTest = await newEnforcerDelegate(adapter, config);
+      const policyForTest = await newPermissionPolicy(
+        config,
+        enfDelegateForTest,
+        roleMetadataStorageTest,
+      );
+
+      const decision = await policyForTest.handle(
+        newPolicyQueryWithResourcePermission(
+          'catalog.entity.delete',
+          'catalog-entity',
+          'delete',
+        ),
+        newPolicyQueryUser('user:default/some_user', [
+          'group:default/super_users_group',
+        ]),
+      );
+      expect(decision.result).toBe(AuthorizeResult.ALLOW);
+      expectAuditorLogForPermission(
+        'user:default/some_user',
+        'catalog.entity.delete',
+        'catalog-entity',
+        'delete',
+        AuthorizeResult.ALLOW,
+      );
+    });
+
+    it('should deny access to a user who is not a member of a group configured as super user', async () => {
+      const superUsersConfig = new Array<{ name: string }>();
+      superUsersConfig.push({ name: 'group:default/super_users_group' });
+
+      const config = newConfig(csvPermFile, admins, superUsersConfig);
+      const adapter = await newAdapter(config);
+      const enfDelegateForTest = await newEnforcerDelegate(adapter, config);
+      const policyForTest = await newPermissionPolicy(
+        config,
+        enfDelegateForTest,
+        roleMetadataStorageTest,
+      );
+
+      const decision = await policyForTest.handle(
+        newPolicyQueryWithResourcePermission(
+          'catalog.entity.delete',
+          'catalog-entity',
+          'delete',
+        ),
+        newPolicyQueryUser('user:default/some_user', [
+          'group:default/other_group',
+        ]),
+      );
+      expect(decision.result).toBe(AuthorizeResult.DENY);
+      expectAuditorLogForPermission(
+        'user:default/some_user',
+        'catalog.entity.delete',
+        'catalog-entity',
+        'delete',
+        AuthorizeResult.DENY,
+      );
+    });
+
+    it('should deny super user access when the user belongs only to a sub-group of a configured super user group', async () => {
+      // Catalog hierarchy (see __fixtures__/data/hierarchy/groups.ts):
+      //   data_read_admin.parent = data_parent_admin
+      //   user:default/mike is a direct member of data_read_admin
+      //
+      // superUsers checks ownershipEntityRefs for an exact match only — it does
+      // not walk the catalog group tree. A resolver therefore returns the child
+      // group ref, not the parent configured as super user.
+      const superUsersConfig = new Array<{ name: string }>();
+      superUsersConfig.push({ name: 'group:default/data_parent_admin' });
+
+      const config = newConfig(csvPermFile, admins, superUsersConfig);
+      const adapter = await newAdapter(config);
+      const enfDelegateForTest = await newEnforcerDelegate(adapter, config);
+      const policyForTest = await newPermissionPolicy(
+        config,
+        enfDelegateForTest,
+        roleMetadataStorageTest,
+      );
+
+      const decision = await policyForTest.handle(
+        newPolicyQueryWithResourcePermission(
+          'catalog.entity.delete',
+          'catalog-entity',
+          'delete',
+        ),
+        newPolicyQueryUser('user:default/mike', [
+          'group:default/data_read_admin',
+        ]),
+      );
+      expect(decision.result).toBe(AuthorizeResult.DENY);
+      expectAuditorLogForPermission(
+        'user:default/mike',
+        'catalog.entity.delete',
+        'catalog-entity',
+        'delete',
+        AuthorizeResult.DENY,
+      );
+    });
+
     it('should remove users that are no longer in the config file', async () => {
       const enfRole = await enfDelegate.getFilteredGroupingPolicy(1, adminRole);
       const enfPermission = await enfDelegate.getFilteredPolicy(0, adminRole);
@@ -1043,6 +1162,188 @@ describe('RBACPermissionPolicy Tests', () => {
       expect(enfRole).not.toContain(oldGroupPolicy);
       expect(enfPermission).toEqual(permissions);
     });
+  });
+});
+
+describe('useOwnershipEntityRefs', () => {
+  const oncallRole = 'role:default/oncall';
+  const catalogRole = 'role:default/catalog-reader';
+  const oncallPolicies = [
+    [oncallRole, 'catalog.entity.read', 'read', 'allow'],
+    [oncallRole, 'catalog-entity', 'read', 'allow'],
+  ];
+  const catalogPolicies = [
+    [catalogRole, 'catalog.entity.create', 'use', 'allow'],
+    [catalogRole, 'catalog.entity.create', 'create', 'allow'],
+  ];
+
+  async function buildPolicy(
+    useOwnershipEntityRefs: boolean,
+    groupPolicies: string[][],
+    permissionPolicies: string[][],
+  ) {
+    const config = newConfig(
+      undefined,
+      [],
+      undefined,
+      undefined,
+      useOwnershipEntityRefs,
+    );
+    const adapter = await newAdapter(config);
+    const enfDelegate = await newEnforcerDelegate(
+      adapter,
+      config,
+      permissionPolicies,
+      groupPolicies,
+    );
+    const policy = await newPermissionPolicy(config, enfDelegate);
+    return { policy, enfDelegate };
+  }
+
+  it('should allow access when enabled and group is in ownershipEntityRefs without catalog memberOf', async () => {
+    const { policy } = await buildPolicy(
+      true,
+      [['group:default/oncall', oncallRole]],
+      oncallPolicies,
+    );
+
+    const decision = await policy.handle(
+      newPolicyQueryWithResourcePermission(
+        'catalog.entity.read',
+        'catalog-entity',
+        'read',
+      ),
+      newPolicyQueryUser('user:default/john.doe', [
+        'user:default/john.doe',
+        'group:default/oncall',
+      ]),
+    );
+
+    expect(decision.result).toBe(AuthorizeResult.ALLOW);
+  });
+
+  it('should deny access when disabled and group is only in ownershipEntityRefs', async () => {
+    const { policy } = await buildPolicy(
+      false,
+      [['group:default/oncall', oncallRole]],
+      oncallPolicies,
+    );
+
+    const decision = await policy.handle(
+      newPolicyQueryWithResourcePermission(
+        'catalog.entity.read',
+        'catalog-entity',
+        'read',
+      ),
+      newPolicyQueryUser('user:default/john.doe', [
+        'user:default/john.doe',
+        'group:default/oncall',
+      ]),
+    );
+
+    expect(decision.result).toBe(AuthorizeResult.DENY);
+  });
+
+  it('should merge catalog and token-derived roles', async () => {
+    const { policy } = await buildPolicy(
+      true,
+      [
+        ['group:default/oncall', oncallRole],
+        ['user:default/catalog-user', catalogRole],
+      ],
+      [...oncallPolicies, ...catalogPolicies],
+    );
+
+    const readDecision = await policy.handle(
+      newPolicyQueryWithResourcePermission(
+        'catalog.entity.read',
+        'catalog-entity',
+        'read',
+      ),
+      newPolicyQueryUser('user:default/catalog-user', [
+        'user:default/catalog-user',
+        'group:default/oncall',
+      ]),
+    );
+    expect(readDecision.result).toBe(AuthorizeResult.ALLOW);
+
+    const createDecision = await policy.handle(
+      newPolicyQueryWithBasicPermission('catalog.entity.create', 'create'),
+      newPolicyQueryUser('user:default/catalog-user', [
+        'user:default/catalog-user',
+        'group:default/oncall',
+      ]),
+    );
+    expect(createDecision.result).toBe(AuthorizeResult.ALLOW);
+  });
+
+  it('should resolve direct user-to-role bindings via ownershipEntityRefs', async () => {
+    const { policy, enfDelegate } = await buildPolicy(
+      true,
+      [['user:default/john.doe', oncallRole]],
+      oncallPolicies,
+    );
+    jest.spyOn(enfDelegate, 'getRolesForUser').mockResolvedValueOnce([]);
+
+    const decision = await policy.handle(
+      newPolicyQueryWithResourcePermission(
+        'catalog.entity.read',
+        'catalog-entity',
+        'read',
+      ),
+      newPolicyQueryUser('user:default/john.doe', ['user:default/john.doe']),
+    );
+
+    expect(decision.result).toBe(AuthorizeResult.ALLOW);
+  });
+
+  it('should fall back to user entity ref when ownershipEntityRefs is empty', async () => {
+    const { policy } = await buildPolicy(
+      true,
+      [['user:default/john.doe', oncallRole]],
+      oncallPolicies,
+    );
+
+    const decision = await policy.handle(
+      newPolicyQueryWithResourcePermission(
+        'catalog.entity.read',
+        'catalog-entity',
+        'read',
+      ),
+      newPolicyQueryUser('user:default/john.doe', []),
+    );
+
+    expect(decision.result).toBe(AuthorizeResult.ALLOW);
+  });
+
+  it('should deduplicate ownership entity refs before resolving roles', async () => {
+    const { policy, enfDelegate } = await buildPolicy(
+      true,
+      [['group:default/oncall', oncallRole]],
+      oncallPolicies,
+    );
+    const getFilteredGroupingPolicySpy = jest.spyOn(
+      enfDelegate,
+      'getFilteredGroupingPolicy',
+    );
+
+    await policy.handle(
+      newPolicyQueryWithResourcePermission(
+        'catalog.entity.read',
+        'catalog-entity',
+        'read',
+      ),
+      newPolicyQueryUser('user:default/john.doe', [
+        'group:default/oncall',
+        'group:default/oncall',
+      ]),
+    );
+
+    expect(getFilteredGroupingPolicySpy).toHaveBeenCalledTimes(1);
+    expect(getFilteredGroupingPolicySpy).toHaveBeenCalledWith(
+      0,
+      'group:default/oncall',
+    );
   });
 });
 
@@ -1068,6 +1369,9 @@ describe('Policy checks for resourced permissions defined by name', () => {
     createRoleMetadata: jest.fn().mockImplementation(),
     updateRoleMetadata: jest.fn().mockImplementation(),
     removeRoleMetadata: jest.fn().mockImplementation(),
+    getCachedDefaultRoleMetadata: jest.fn().mockImplementation(() => undefined),
+    getDefaultRole: jest.fn().mockResolvedValue(undefined),
+    syncDefaultRoleMetadata: jest.fn().mockResolvedValue(undefined),
   };
   let enfDelegate: EnforcerDelegate;
   let policy: RBACPermissionPolicy;
@@ -1599,7 +1903,7 @@ describe('Policy checks for conditional policies', () => {
       enfDelegate,
       roleMetadataStorageMock,
       mockClientKnex,
-      pluginMetadataCollectorMock as PluginPermissionMetadataCollector,
+      mockUserInfoService,
       mockAuthService,
     );
   });
@@ -2021,22 +2325,17 @@ function newPolicyQueryUser(
   ownershipEntityRefs?: string[],
 ): PolicyQueryUser | undefined {
   if (user) {
+    mockUserInfoService.getUserInfo.mockResolvedValueOnce({
+      userEntityRef: user,
+      ownershipEntityRefs: ownershipEntityRefs ?? [],
+    });
+
     return {
-      identity: {
-        ownershipEntityRefs: ownershipEntityRefs ?? [],
-        type: 'user',
-        userEntityRef: user,
-      },
-      credentials: {
-        $$type: '@backstage/BackstageCredentials',
-        principal: true,
-        expiresAt: new Date('2021-01-01T00:00:00Z'),
-      },
+      credentials: mockCredentials.user(user),
       info: {
         userEntityRef: user,
         ownershipEntityRefs: ownershipEntityRefs ?? [],
       },
-      token: 'token',
     };
   }
   return undefined;
@@ -2047,6 +2346,7 @@ function newConfig(
   users?: Array<{ name: string }>,
   superUsers?: Array<{ name: string }>,
   policyDecisionPrecedence?: 'basic' | 'conditional',
+  useOwnershipEntityRefs?: boolean,
 ): Config {
   const testUsers = [
     {
@@ -2068,7 +2368,60 @@ function newConfig(
             superUsers: superUsers,
           },
           policyDecisionPrecedence: policyDecisionPrecedence ?? 'conditional',
+          ...(useOwnershipEntityRefs !== undefined
+            ? { useOwnershipEntityRefs }
+            : {}),
         },
+      },
+      backend: {
+        database: {
+          client: 'better-sqlite3',
+          connection: ':memory:',
+        },
+      },
+    },
+  });
+}
+
+function newConfigWithDefaultRole(
+  defaultRole?: string,
+  permFile?: string,
+  users?: Array<{ name: string }>,
+  superUsers?: Array<{ name: string }>,
+): Config {
+  const testUsers = [
+    {
+      name: 'user:default/guest',
+    },
+    {
+      name: 'group:default/guests',
+    },
+  ];
+
+  const rbacConfig: any = {
+    'policies-csv-file': permFile || csvPermFile,
+    policyFileReload: false,
+    admin: {
+      users: users || testUsers,
+      superUsers: superUsers,
+    },
+  };
+
+  if (defaultRole !== undefined) {
+    rbacConfig.defaultPermissions = {
+      defaultRole,
+      basicPermissions: [
+        { permission: 'catalog.entity.read', action: 'read' },
+        { permission: 'catalog-entity', action: 'read' },
+        { permission: 'catalog.entity.create', action: 'create' },
+      ],
+    };
+  }
+
+  return mockServices.rootConfig({
+    data: {
+      permission: {
+        rbac: rbacConfig,
       },
       backend: {
         database: {
@@ -2104,6 +2457,7 @@ async function createEnforcer(
     rbacDBClient,
     config,
     mockAuthService,
+    new DefaultPermissionsReader(config),
   );
   enf.setRoleManager(rm);
   enf.enableAutoBuildRoleLinks(false);
@@ -2144,7 +2498,30 @@ async function newPermissionPolicy(
   config: Config,
   enfDelegate: EnforcerDelegate,
   roleMock?: RoleMetadataStorage,
+  defaultPolicies: RoleBasedPolicy[] = [],
 ): Promise<RBACPermissionPolicy> {
+  const defaultRoleRef = defaultPolicies[0]?.entityReference;
+  if (defaultPolicies.length > 0) {
+    const casbinPolicies = defaultPolicies.map(p => [
+      p.entityReference!,
+      p.permission!,
+      p.policy!,
+      p.effect!,
+    ]);
+    await enfDelegate.addPolicies(casbinPolicies);
+    const storage = roleMock || roleMetadataStorageMock;
+    if (defaultRoleRef) {
+      (storage.getCachedDefaultRoleMetadata as jest.Mock).mockReturnValue(
+        buildDefaultRoleMetadata(defaultRoleRef),
+      );
+    }
+  } else {
+    const storage = roleMock || roleMetadataStorageMock;
+    (storage.getCachedDefaultRoleMetadata as jest.Mock).mockReturnValue(
+      undefined,
+    );
+  }
+
   const logger = mockServices.logger.mock();
   const permissionPolicy = await RBACPermissionPolicy.build(
     logger,
@@ -2154,9 +2531,185 @@ async function newPermissionPolicy(
     enfDelegate,
     roleMock || roleMetadataStorageMock,
     mockClientKnex,
-    pluginMetadataCollectorMock as PluginPermissionMetadataCollector,
+    mockUserInfoService,
     mockAuthService,
   );
   clearAuditorMock();
   return permissionPolicy;
 }
+
+describe('Default Role Tests', () => {
+  let enfDelegate: EnforcerDelegate;
+  let policy: RBACPermissionPolicy;
+
+  const defaultRolePolicies: RoleBasedPolicy[] = [
+    {
+      entityReference: 'role:default/viewer',
+      permission: 'catalog.entity.read',
+      policy: 'read',
+      effect: 'allow',
+    },
+    {
+      entityReference: 'role:default/viewer',
+      permission: 'catalog-entity',
+      policy: 'read',
+      effect: 'allow',
+    },
+    {
+      entityReference: 'role:default/viewer',
+      permission: 'policy-entity',
+      policy: 'read',
+      effect: 'allow',
+    },
+  ];
+
+  describe('when defaultRole is configured', () => {
+    beforeEach(async () => {
+      const config = newConfigWithDefaultRole('role:default/viewer');
+      const adapter = await newAdapter(config);
+      enfDelegate = await newEnforcerDelegate(adapter, config);
+
+      policy = await newPermissionPolicy(
+        config,
+        enfDelegate,
+        undefined,
+        defaultRolePolicies,
+      );
+    });
+
+    it('should add default role to user roles when user has no explicit roles', async () => {
+      // Create a user with no explicit roles assigned
+      const decision = await policy.handle(
+        newPolicyQueryWithResourcePermission(
+          'catalog.entity.read',
+          'catalog-entity',
+          'read',
+        ),
+        newPolicyQueryUser('user:default/noroles'),
+      );
+
+      expect(decision.result).toBe(AuthorizeResult.ALLOW);
+      expectAuditorLogForPermission(
+        'user:default/noroles',
+        'catalog.entity.read',
+        'catalog-entity',
+        'read',
+        AuthorizeResult.ALLOW,
+      );
+    });
+
+    it('should add default role to user roles when user has existing roles but not the default one', async () => {
+      // Add user to another role first
+      await enfDelegate.addGroupingPolicy(
+        ['user:default/hasrole', 'role:default/custom'],
+        {
+          source: 'rest',
+          roleEntityRef: 'role:default/custom',
+          modifiedBy: 'test',
+        },
+      );
+
+      const decision = await policy.handle(
+        newPolicyQueryWithResourcePermission(
+          'catalog.entity.read',
+          'catalog-entity',
+          'read',
+        ),
+        newPolicyQueryUser('user:default/hasrole'),
+      );
+
+      expect(decision.result).toBe(AuthorizeResult.ALLOW);
+      expectAuditorLogForPermission(
+        'user:default/hasrole',
+        'catalog.entity.read',
+        'catalog-entity',
+        'read',
+        AuthorizeResult.ALLOW,
+      );
+    });
+
+    it('should not duplicate default role when user already has it assigned explicitly', async () => {
+      // Add user to the default role explicitly
+      await enfDelegate.addGroupingPolicy(
+        ['user:default/alreadyhas', 'role:default/viewer'],
+        {
+          source: 'rest',
+          roleEntityRef: 'role:default/viewer',
+          modifiedBy: 'test',
+        },
+      );
+
+      const decision = await policy.handle(
+        newPolicyQueryWithResourcePermission(
+          'catalog.entity.read',
+          'catalog-entity',
+          'read',
+        ),
+        newPolicyQueryUser('user:default/alreadyhas'),
+      );
+
+      expect(decision.result).toBe(AuthorizeResult.ALLOW);
+      expectAuditorLogForPermission(
+        'user:default/alreadyhas',
+        'catalog.entity.read',
+        'catalog-entity',
+        'read',
+        AuthorizeResult.ALLOW,
+      );
+    });
+
+    it('should work with basic permissions when default role is applied', async () => {
+      // Add a basic permission for the default role
+      await enfDelegate.addPolicy([
+        'role:default/viewer',
+        'catalog.entity.create',
+        'use',
+        'allow',
+      ]);
+
+      const decision = await policy.handle(
+        newPolicyQueryWithBasicPermission('catalog.entity.create'),
+        newPolicyQueryUser('user:default/basictest'),
+      );
+
+      expect(decision.result).toBe(AuthorizeResult.ALLOW);
+      expectAuditorLogForPermission(
+        'user:default/basictest',
+        'catalog.entity.create',
+        undefined,
+        'use',
+        AuthorizeResult.ALLOW,
+      );
+    });
+  });
+
+  describe('when defaultRole is not configured', () => {
+    beforeEach(async () => {
+      const config = newConfig(); // No default role
+      const adapter = await newAdapter(config);
+      enfDelegate = await newEnforcerDelegate(adapter, config);
+      policy = await newPermissionPolicy(config, enfDelegate);
+    });
+
+    it('should not add any default role when none is configured', async () => {
+      const decision = await policy.handle(
+        newPolicyQueryWithResourcePermission(
+          'catalog.entity.read',
+          'catalog-entity',
+          'read',
+        ),
+        newPolicyQueryUser('user:default/nodefault'),
+      );
+
+      // Should deny since no permissions are granted and no default role
+      expect(decision.result).toBe(AuthorizeResult.DENY);
+      expectAuditorLogForPermission(
+        'user:default/nodefault',
+        'catalog.entity.read',
+        'catalog-entity',
+        'read',
+        AuthorizeResult.DENY,
+      );
+    });
+  });
+});

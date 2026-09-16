@@ -15,7 +15,7 @@
  */
 import { mockServices } from '@backstage/backend-test-utils';
 
-import { Model, newEnforcer, newModelFromString } from 'casbin';
+import { Enforcer, Model, newEnforcer, newModelFromString } from 'casbin';
 import * as Knex from 'knex';
 import { MockClient } from 'knex-mock-client';
 
@@ -25,18 +25,17 @@ import {
   RoleMetadataStorage,
 } from '../database/role-metadata';
 import { BackstageRoleManager } from '../role-manager/role-manager';
+import { DefaultPermissionsReader } from '../default-permissions/default-permissions';
 import { EnforcerDelegate } from './enforcer-delegate';
 import { MODEL } from './permission-model';
 import {
   catalogMock,
   conditionalStorageMock,
+  createEventMock,
   mockAuditorService,
 } from '../../__fixtures__/mock-utils';
 import { AuthorizeResult } from '@backstage/plugin-permission-common';
-import {
-  PermissionInfo,
-  RoleConditionalPolicyDecision,
-} from '@backstage-community/plugin-rbac-common';
+import { RoleConditionalPolicyDecision } from '@backstage-community/plugin-rbac-common';
 
 const roleMetadataStorageMock: RoleMetadataStorage = {
   filterRoleMetadata: jest.fn().mockImplementation(() => []),
@@ -45,6 +44,9 @@ const roleMetadataStorageMock: RoleMetadataStorage = {
   createRoleMetadata: jest.fn().mockImplementation(),
   updateRoleMetadata: jest.fn().mockImplementation(),
   removeRoleMetadata: jest.fn().mockImplementation(),
+  getCachedDefaultRoleMetadata: jest.fn().mockImplementation(),
+  getDefaultRole: jest.fn().mockResolvedValue(undefined),
+  syncDefaultRoleMetadata: jest.fn().mockResolvedValue(undefined),
 };
 
 const mockClientKnex = Knex.knex({ client: MockClient });
@@ -125,6 +127,8 @@ describe('EnforcerDelegate', () => {
     (roleMetadataStorageMock.updateRoleMetadata as jest.Mock).mockReset();
     (roleMetadataStorageMock.findRoleMetadata as jest.Mock).mockReset();
     (roleMetadataStorageMock.removeRoleMetadata as jest.Mock).mockReset();
+    jest.mocked(createEventMock.fail).mockReset();
+    jest.mocked(createEventMock.success).mockReset();
   });
 
   const knex = Knex.knex({ client: MockClient });
@@ -164,6 +168,7 @@ describe('EnforcerDelegate', () => {
       rbacDBClient,
       config,
       mockAuthService,
+      new DefaultPermissionsReader(config),
     );
     enf.setRoleManager(rm);
     enf.enableAutoBuildRoleLinks(false);
@@ -184,6 +189,27 @@ describe('EnforcerDelegate', () => {
       knex,
     );
   }
+
+  describe('loadPolicy', () => {
+    it('rethrows after auditing a failed enforcer loadPolicy', async () => {
+      const loadErr = new Error('Invalid Closing Quote');
+      const mockEnforcer = {
+        loadPolicy: jest.fn().mockRejectedValue(loadErr),
+      } as unknown as Enforcer;
+
+      const delegate = new EnforcerDelegate(
+        mockEnforcer,
+        mockAuditorService,
+        conditionalStorageMock,
+        roleMetadataStorageMock,
+        knex,
+      );
+
+      await expect(delegate.loadPolicy()).rejects.toThrow(loadErr);
+
+      expect(createEventMock.fail).toHaveBeenCalledWith({ error: loadErr });
+    });
+  });
 
   describe('hasPolicy', () => {
     it('has policy should return false', async () => {
@@ -426,10 +452,7 @@ describe('EnforcerDelegate', () => {
 
       expect(storePolicies.length).toEqual(2);
       expect(storePolicies).toEqual(
-        expect.arrayContaining([
-          expect.objectContaining(policy),
-          expect.objectContaining(secondPolicy),
-        ]),
+        expect.arrayContaining([policy, secondPolicy]),
       );
       expect(enfAddPoliciesSpy).toHaveBeenCalledWith([policy, secondPolicy]);
     });
@@ -956,7 +979,7 @@ describe('EnforcerDelegate', () => {
         secondGroupingPolicyWithRenamedRole,
       ]);
 
-      const updatedCondition: RoleConditionalPolicyDecision<PermissionInfo> = (
+      const updatedCondition: RoleConditionalPolicyDecision = (
         conditionalStorageMock.updateCondition as jest.Mock
       ).mock.calls[0][1];
       expect(updatedCondition).toEqual({

@@ -1,5 +1,76 @@
 # @backstage-community/plugin-mcp-chat-backend
 
+## 0.14.1
+
+### Patch Changes
+
+- 778af1d: Backstage version bump to v1.54.7
+
+## 0.14.0
+
+### Minor Changes
+
+- c1dd2c9: Backstage version bump to v1.54.5
+
+## 0.13.0
+
+### Minor Changes
+
+- 83d814e: Backstage version bump to v1.53.0
+
+## 0.12.0
+
+### Minor Changes
+
+- cacdbba: Backstage version bump to v1.52.0
+
+## 0.11.0
+
+### Minor Changes
+
+- c43e80c: Add Azure OpenAI provider to support newer Azure OpenAI models like `gpt-5.1`.
+
+  This provider filters the models returned during the connection test to only show the status of the model of the configured deployment. It also uses `max_completion_tokens` correctly, fixing compatibility with newer models.
+
+## 0.10.0
+
+### Minor Changes
+
+- 8db17fe: Added support for max_tokens and temperature customization
+- 371fbad: Implement tool-level filtering using plugin configuration
+- 2cb7b1b: Add support for configuring MCP tool call timeout
+- 8db17fe: Added support for O-series and GPT-5 models
+
+### Patch Changes
+
+- 371fbad: Remove allowedTools from public MCPServerConfig API surface and improve disabledTools validation
+
+## 0.9.0
+
+### Minor Changes
+
+- 81aead2: Backstage version bump to v1.50.2
+
+## 0.8.0
+
+### Minor Changes
+
+- 1b22981: Migrating away from deprecated @google/generative-ai npm package to new @google/genai for gemini provider
+- a81325a: Added support for debugging LLM calls
+- 3e01b82: Backstage version bump to v1.49.2
+
+  Updated `uuid` and `@types/uuid` to ^11.0.0, `@backstage/plugin-catalog-node` to ^2.1.0, and deduplicated yarn.lock
+
+## 0.7.0
+
+### Minor Changes
+
+- 158dbf4: Backstage version bump to v1.48.5
+
+### Patch Changes
+
+- 8a6b81c: Updated dependency `@types/supertest` to `^7.0.0`.
+
 ## 0.6.1
 
 ### Patch Changes

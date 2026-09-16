@@ -1,5 +1,80 @@
 # @backstage-community/plugin-azure-devops-backend
 
+## 0.32.0
+
+### Minor Changes
+
+- 6c8035e: Backstage version bump to v1.54.5
+
+### Patch Changes
+
+- Updated dependencies [6c8035e]
+  - @backstage-community/plugin-azure-devops-common@0.26.0
+
+## 0.31.0
+
+### Minor Changes
+
+- 6213c8b: Backstage version bump to v1.53.0
+
+### Patch Changes
+
+- Updated dependencies [6213c8b]
+  - @backstage-community/plugin-azure-devops-common@0.25.0
+
+## 0.30.1
+
+### Patch Changes
+
+- Updated dependencies [c998902]
+  - @backstage-community/plugin-azure-devops-common@0.24.1
+
+## 0.30.0
+
+### Minor Changes
+
+- 9f8f870: Backstage version bump to v1.51.0
+- 5b83efb: Backstage version bump to v1.52.0
+
+### Patch Changes
+
+- Updated dependencies [9f8f870]
+- Updated dependencies [5b83efb]
+  - @backstage-community/plugin-azure-devops-common@0.24.0
+
+## 0.29.0
+
+### Minor Changes
+
+- 7067acc: Added multi-org support to the Azure Pull Request Dashboard Page
+
+### Patch Changes
+
+- Updated dependencies [7067acc]
+  - @backstage-community/plugin-azure-devops-common@0.23.0
+
+## 0.28.0
+
+### Minor Changes
+
+- f2f1e66: Backstage version bump to v1.50.2
+
+### Patch Changes
+
+- Updated dependencies [f2f1e66]
+  - @backstage-community/plugin-azure-devops-common@0.22.0
+
+## 0.27.0
+
+### Minor Changes
+
+- 7c1dfa3: Backstage version bump to v1.49.2
+
+### Patch Changes
+
+- Updated dependencies [7c1dfa3]
+  - @backstage-community/plugin-azure-devops-common@0.21.0
+
 ## 0.26.1
 
 ### Patch Changes

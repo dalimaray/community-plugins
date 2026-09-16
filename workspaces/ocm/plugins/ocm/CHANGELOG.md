@@ -1,5 +1,102 @@
 # @backstage-community/plugin-ocm
 
+## 5.21.2
+
+### Patch Changes
+
+- 27fcb15: Updated dependency `@testing-library/user-event` to `14.6.7`.
+- b4d71fd: Backstage version bump to v1.54.7
+- Updated dependencies [b4d71fd]
+  - @backstage-community/plugin-ocm-common@5.21.2
+
+## 5.21.1
+
+### Patch Changes
+
+- 99a88ab: Updated dependency `@testing-library/user-event` to `14.6.6`.
+  - @backstage-community/plugin-ocm-common@5.21.1
+
+## 5.20.0
+
+### Minor Changes
+
+- 2f20375: Backstage version bump to v1.54.5
+
+### Patch Changes
+
+- Updated dependencies [2f20375]
+  - @backstage-community/plugin-ocm-common@3.24.0
+
+## 5.19.0
+
+### Minor Changes
+
+- ac55ecf: Backstage version bump to v1.52.0
+
+### Patch Changes
+
+- Updated dependencies [ac55ecf]
+  - @backstage-community/plugin-ocm-common@3.23.0
+
+## 5.18.0
+
+### Minor Changes
+
+- 1d2d715: Backstage version bump to v1.50.4
+
+### Patch Changes
+
+- Updated dependencies [1d2d715]
+  - @backstage-community/plugin-ocm-common@3.22.0
+
+## 5.17.0
+
+### Minor Changes
+
+- a6cd71c: Backstage version bump to v1.50.2
+
+### Patch Changes
+
+- Updated dependencies [a6cd71c]
+  - @backstage-community/plugin-ocm-common@3.21.0
+
+## 5.16.0
+
+### Minor Changes
+
+- 10dc05b: Backstage version bump to v1.49.2
+
+### Patch Changes
+
+- Updated dependencies [10dc05b]
+  - @backstage-community/plugin-ocm-common@3.20.0
+
+## 5.15.1
+
+### Patch Changes
+
+- 0467b33: Updated dependency `@testing-library/react` to `^16.0.0`.
+  Updated dependency `@testing-library/dom` to `10.4.1`.
+  Updated dependency `@testing-library/jest-dom` to `^6.0.0`.
+- 4632846: Backstage version bump to v1.48.5
+- Updated dependencies [4632846]
+  - @backstage-community/plugin-ocm-common@3.19.1
+
+## 5.15.0
+
+### Minor Changes
+
+- 5f6f816: Backstage version bump to v1.48.4
+
+### Patch Changes
+
+- 926c09e: Show loading indicator and error panel if needed on the cluster info and cluster resource cards.
+- 13684ea: ClusterAvailableResourceCard components returns now a JSX element instead of any but this should be fine in most cases.
+- 926c09e: Fix crash when cluster entity and cluster resources doesn't match.
+- 926c09e: Improve OCM cluster page when an error is displayed and removed unnecessary home plugin dependency.
+- Updated dependencies [5f6f816]
+  - @backstage-community/plugin-ocm-common@3.19.0
+
 ## 5.14.0
 
 ### Minor Changes

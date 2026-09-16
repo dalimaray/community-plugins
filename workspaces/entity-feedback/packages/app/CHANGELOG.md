@@ -1,5 +1,54 @@
 # app
 
+## 0.0.29
+
+### Patch Changes
+
+- Updated dependencies [c901d96]
+  - @backstage-community/plugin-entity-feedback@0.22.0
+
+## 0.0.28
+
+### Patch Changes
+
+- Updated dependencies [2fd6cf6]
+  - @backstage-community/plugin-entity-feedback@0.21.1
+
+## 0.0.27
+
+### Patch Changes
+
+- Updated dependencies [b6d88b4]
+  - @backstage-community/plugin-entity-feedback@0.21.0
+
+## 0.0.26
+
+### Patch Changes
+
+- Updated dependencies [52e455f]
+  - @backstage-community/plugin-entity-feedback@0.20.0
+
+## 0.0.25
+
+### Patch Changes
+
+- Updated dependencies [c946411]
+  - @backstage-community/plugin-entity-feedback@0.19.0
+
+## 0.0.24
+
+### Patch Changes
+
+- Updated dependencies [bfce61f]
+  - @backstage-community/plugin-entity-feedback@0.18.0
+
+## 0.0.23
+
+### Patch Changes
+
+- Updated dependencies [8cb1076]
+  - @backstage-community/plugin-entity-feedback@0.17.0
+
 ## 0.0.22
 
 ### Patch Changes

@@ -65,6 +65,8 @@ import {
 import { Namespace } from '../src/objects';
 import { FluxContent } from '../src/components/FluxContent';
 import { permissionApiRef } from '@backstage/plugin-permission-react';
+// eslint-disable-next-line @backstage/no-ui-css-imports-in-non-frontend
+import '@backstage/ui/css/styles.css';
 
 const fakeEntity: Entity = {
   apiVersion: 'backstage.io/v1alpha1',

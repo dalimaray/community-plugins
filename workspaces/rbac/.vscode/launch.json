@@ -9,6 +9,15 @@
       "args": ["package", "test", "${relativeFile}"],
       "console": "integratedTerminal",
       "internalConsoleOptions": "neverOpen",
-    }
+    },
+    {
+      "type": "node",
+      "request": "launch",
+      "name": "Debug backend",
+      "program": "${workspaceRoot}/node_modules/.bin/backstage-cli",
+      "args": ["package", "start", "--config", "app-config.yaml"],
+      "console": "integratedTerminal",
+      "cwd": "${workspaceFolder}/plugins/rbac-backend"
+    },
   ]
 }

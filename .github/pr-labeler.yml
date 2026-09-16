@@ -94,6 +94,14 @@ workspace/bookmarks:
 - changed-files:
   - any-glob-to-any-file: ['workspaces/bookmarks/**']
 
+workspace/catalog:
+- changed-files:
+  - any-glob-to-any-file: ['workspaces/catalog/**']
+
+workspace/checkmarx:
+- changed-files:
+  - any-glob-to-any-file: ['workspaces/checkmarx/**']
+
 workspace/cicd-statistics:
 - changed-files:
   - any-glob-to-any-file: ['workspaces/cicd-statistics/**']
@@ -141,6 +149,10 @@ workspace/entity-validation:
 workspace/explore:
 - changed-files:
   - any-glob-to-any-file: ['workspaces/explore/**']
+
+workspace/fairwinds-insights:
+- changed-files:
+  - any-glob-to-any-file: ['workspaces/fairwinds-insights/**']
 
 workspace/feedback:
 - changed-files:
@@ -193,6 +205,10 @@ workspace/graphiql:
 workspace/graphql-voyager:
 - changed-files:
   - any-glob-to-any-file: ['workspaces/graphql-voyager/**']
+
+workspace/growthbook-flags:
+- changed-files:
+  - any-glob-to-any-file: ['workspaces/growthbook-flags/**']
 
 workspace/ilert:
 - changed-files:
@@ -257,6 +273,10 @@ workspace/mta:
 workspace/multi-source-security-viewer:
 - changed-files:
   - any-glob-to-any-file: ['workspaces/multi-source-security-viewer/**']
+
+workspace/n8n:
+- changed-files:
+  - any-glob-to-any-file: ['workspaces/n8n/**']
 
 workspace/newrelic:
 - changed-files:
@@ -393,6 +413,10 @@ workspace/topology:
 workspace/vault:
 - changed-files:
   - any-glob-to-any-file: ['workspaces/vault/**']
+
+workspace/akeyless:
+- changed-files:
+  - any-glob-to-any-file: ['workspaces/akeyless/**']
 
 workspace/wheel-of-names:
 - changed-files:

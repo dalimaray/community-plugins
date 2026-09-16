@@ -1,5 +1,49 @@
 # @backstage-community/plugin-tekton-react
 
+## 0.9.1
+
+### Patch Changes
+
+- 8ff1dd1: Added an extension `if` predicate so the Tekton entity tab is only shown when the user is authorized for `kubernetes.clusters.read` and `kubernetes.resources.read`.
+- d0f4c91: Backstage version bump to v1.54.7
+
+## 0.9.0
+
+### Minor Changes
+
+- 77c4615: Backstage version bump to v1.54.5
+  Added New Frontend System development entrypoints and e2e coverage for both NFS and legacy.
+
+## 0.8.0
+
+### Minor Changes
+
+- 3ad9785: Backstage version bump to v1.52.0
+
+## 0.7.0
+
+### Minor Changes
+
+- bbdacfc: Backstage version bump to v1.51.0
+
+## 0.6.0
+
+### Minor Changes
+
+- 91220cb: Backstage version bump to v1.50.4
+
+## 0.5.0
+
+### Minor Changes
+
+- 701b9e7: Backstage version bump to v1.49.2
+
+## 0.4.1
+
+### Patch Changes
+
+- f5dd5e1: Backstage version bump to v1.48.5
+
 ## 0.4.0
 
 ### Minor Changes

@@ -28,6 +28,8 @@ attributes:
     - bitrise
     - blackduck
     - bookmarks
+    - catalog
+    - checkmarx
     - cicd-statistics
     - cloudbuild
     - code-climate
@@ -40,6 +42,7 @@ attributes:
     - entity-feedback
     - entity-validation
     - explore
+    - fairwinds-insights
     - feedback
     - firehydrant
     - flux
@@ -53,6 +56,7 @@ attributes:
     - grafana
     - graphiql
     - graphql-voyager
+    - growthbook-flags
     - ilert
     - jaeger
     - jenkins
@@ -69,6 +73,7 @@ attributes:
     - microsoft-calendar
     - mta
     - multi-source-security-viewer
+    - n8n
     - newrelic
     - nexus-repository-manager
     - nomad

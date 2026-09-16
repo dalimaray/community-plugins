@@ -13,9 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-export {
-  argocdPlugin,
-  ArgocdDeploymentLifecycle,
-  ArgocdDeploymentSummary,
-} from './plugin';
-export { isArgocdConfigured } from './utils/isArgocdConfigured';
+
+export { default } from './plugin';
+export { default as argocdTranslationsModule } from './translations';
+export { argocdTranslations, argocdTranslationRef } from './translations';
